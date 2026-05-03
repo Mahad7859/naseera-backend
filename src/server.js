@@ -57,18 +57,54 @@ async function initializeSchema() {
   `)
 
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS sale_ads (
+    CREATE TABLE IF NOT EXISTS orders (
       id SERIAL PRIMARY KEY,
+      customer_name TEXT NOT NULL,
+      customer_email TEXT NOT NULL,
+      customer_phone TEXT,
+      customer_address TEXT,
+      total_amount NUMERIC(12, 2) NOT NULL,
+      order_items JSONB NOT NULL DEFAULT '[]',
+      payment_method TEXT NOT NULL DEFAULT 'online',
+      status TEXT NOT NULL DEFAULT 'pending',
+      safepay_tracker TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      image_url TEXT NOT NULL,
+      display_order INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS hero_slides (
+      id SERIAL PRIMARY KEY,
+      image_url TEXT NOT NULL,
       title TEXT NOT NULL,
       subtitle TEXT DEFAULT '',
-      cta_text TEXT DEFAULT 'Shop Now',
-      product_ids TEXT[] DEFAULT '{}',
-      discount_percent NUMERIC(5, 2) DEFAULT 0,
-      expires_at TIMESTAMPTZ,
+      display_order INTEGER DEFAULT 0,
       is_active BOOLEAN NOT NULL DEFAULT TRUE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+  `)
+
+  await pool.query(`
+    ALTER TABLE orders
+    ADD COLUMN IF NOT EXISTS customer_phone TEXT,
+    ADD COLUMN IF NOT EXISTS customer_address TEXT,
+    ADD COLUMN IF NOT EXISTS total_amount NUMERIC(12, 2),
+    ADD COLUMN IF NOT EXISTS order_items JSONB DEFAULT '[]',
+    ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'online',
+    ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending',
+    ADD COLUMN IF NOT EXISTS safepay_tracker TEXT;
   `)
 
   await pool.query(`
@@ -86,16 +122,13 @@ async function initializeSchema() {
   `)
 
   await pool.query(`
-    ALTER TABLE sale_ads
-    ADD COLUMN IF NOT EXISTS subtitle TEXT DEFAULT '',
-    ADD COLUMN IF NOT EXISTS cta_text TEXT DEFAULT 'Shop Now',
-    ADD COLUMN IF NOT EXISTS product_ids TEXT[] DEFAULT '{}',
-    ADD COLUMN IF NOT EXISTS discount_percent NUMERIC(5, 2) DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ,
+    ALTER TABLE hero_slides
+    ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0,
     ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE,
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
   `)
+
 }
 
 function normalizeProduct(row) {
@@ -108,6 +141,23 @@ function normalizeProduct(row) {
     imageSide: row.image_side,
     isFeatured: row.is_featured,
     isVisible: row.is_visible,
+  }
+}
+
+function normalizeHeroSlide(row) {
+  return {
+    ...row,
+    imageUrl: row.image_url,
+    displayOrder: row.display_order,
+    isActive: row.is_active,
+  }
+}
+
+function normalizeCategory(row) {
+  return {
+    ...row,
+    imageUrl: row.image_url,
+    displayOrder: row.display_order,
   }
 }
 
@@ -153,11 +203,14 @@ app.get('/api/products', async (req, res) => {
   res.json(rows.map(normalizeProduct))
 })
 
-app.get('/api/sale-ads/active', async (_req, res) => {
-  const { rows } = await pool.query(
-    `SELECT * FROM sale_ads WHERE is_active = TRUE ORDER BY updated_at DESC`,
-  )
-  res.json(rows)
+app.get('/api/hero-slides', async (_req, res) => {
+  const { rows } = await pool.query(`SELECT * FROM hero_slides WHERE is_active = TRUE ORDER BY display_order ASC, created_at DESC`)
+  res.json(rows.map(normalizeHeroSlide))
+})
+
+app.get('/api/categories', async (_req, res) => {
+  const { rows } = await pool.query(`SELECT * FROM categories ORDER BY display_order ASC, name ASC`)
+  res.json(rows.map(normalizeCategory))
 })
 
 app.get('/api/admin/products', requireAdminAuth, async (_req, res) => {
@@ -236,51 +289,143 @@ app.delete('/api/admin/products/:id', requireAdminAuth, async (req, res) => {
   return res.status(204).send()
 })
 
-app.get('/api/admin/sale-ads', requireAdminAuth, async (_req, res) => {
-  const { rows } = await pool.query(`SELECT * FROM sale_ads ORDER BY updated_at DESC`)
-  res.json(rows)
+app.get('/api/admin/hero-slides', requireAdminAuth, async (_req, res) => {
+  const { rows } = await pool.query(`SELECT * FROM hero_slides ORDER BY display_order ASC, created_at DESC`)
+  res.json(rows.map(normalizeHeroSlide))
 })
 
-app.post('/api/admin/sale-ads', requireAdminAuth, async (req, res) => {
-  const { title, subtitle = '', ctaText = 'Shop Now', isActive = true } = req.body
+app.post('/api/admin/hero-slides', requireAdminAuth, async (req, res) => {
+  const { image_url, title, subtitle = '', display_order = 0, is_active = true } = req.body
   const { rows } = await pool.query(
-    `INSERT INTO sale_ads (title, subtitle, cta_text, is_active)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO hero_slides (image_url, title, subtitle, display_order, is_active)
+     VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
-    [title, subtitle, ctaText, isActive],
+    [image_url, title, subtitle, display_order, is_active]
   )
-  res.status(201).json(rows[0])
+  res.status(201).json(normalizeHeroSlide(rows[0]))
 })
 
-app.put('/api/admin/sale-ads/:id', requireAdminAuth, async (req, res) => {
-  const { title, subtitle = '', ctaText = 'Shop Now', isActive = true } = req.body
+app.put('/api/admin/hero-slides/:id', requireAdminAuth, async (req, res) => {
+  const { image_url, title, subtitle = '', display_order = 0, is_active = true } = req.body
   const { rows } = await pool.query(
-    `UPDATE sale_ads
-     SET title = $1,
-         subtitle = $2,
-         cta_text = $3,
-         is_active = $4,
+    `UPDATE hero_slides
+     SET image_url = $1,
+         title = $2,
+         subtitle = $3,
+         display_order = $4,
+         is_active = $5,
          updated_at = NOW()
-     WHERE id = $5
+     WHERE id = $6
      RETURNING *`,
-    [title, subtitle, ctaText, isActive, req.params.id],
+    [image_url, title, subtitle, display_order, is_active, req.params.id]
   )
 
   if (!rows[0]) {
-    return res.status(404).json({ message: 'Sale ad not found.' })
+    return res.status(404).json({ message: 'Hero slide not found.' })
   }
 
-  return res.json(rows[0])
+  return res.json(normalizeHeroSlide(rows[0]))
 })
 
-app.delete('/api/admin/sale-ads/:id', requireAdminAuth, async (req, res) => {
-  const { rowCount } = await pool.query(`DELETE FROM sale_ads WHERE id = $1`, [req.params.id])
+app.delete('/api/admin/hero-slides/:id', requireAdminAuth, async (req, res) => {
+  const { rowCount } = await pool.query(`DELETE FROM hero_slides WHERE id = $1`, [req.params.id])
 
   if (!rowCount) {
-    return res.status(404).json({ message: 'Sale ad not found.' })
+    return res.status(404).json({ message: 'Hero slide not found.' })
   }
 
   return res.status(204).send()
+})
+
+app.get('/api/admin/categories', requireAdminAuth, async (_req, res) => {
+  const { rows } = await pool.query(`SELECT * FROM categories ORDER BY display_order ASC`)
+  res.json(rows.map(normalizeCategory))
+})
+
+app.post('/api/admin/categories', requireAdminAuth, async (req, res) => {
+  const { name, image_url, display_order = 0 } = req.body
+  const { rows } = await pool.query(
+    `INSERT INTO categories (name, image_url, display_order)
+     VALUES ($1, $2, $3)
+     RETURNING *`,
+    [name.toLowerCase(), image_url, display_order]
+  )
+  res.status(201).json(normalizeCategory(rows[0]))
+})
+
+app.put('/api/admin/categories/:id', requireAdminAuth, async (req, res) => {
+  const { name, image_url, display_order = 0 } = req.body
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const oldCat = await client.query('SELECT name FROM categories WHERE id = $1', [req.params.id])
+    if (!oldCat.rows[0]) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ message: 'Category not found' })
+    }
+    const oldName = oldCat.rows[0].name
+    const newName = name.toLowerCase()
+
+    const { rows } = await client.query(
+      `UPDATE categories SET name = $1, image_url = $2, display_order = $3, updated_at = NOW() WHERE id = $4 RETURNING *`,
+      [newName, image_url, display_order, req.params.id]
+    )
+
+    if (newName !== oldName) {
+      await client.query('UPDATE products SET category = $1 WHERE category = $2', [newName, oldName])
+    }
+
+    await client.query('COMMIT')
+    res.json(normalizeCategory(rows[0]))
+  } catch (error) {
+    await client.query('ROLLBACK')
+    console.error('Category update error:', error)
+    res.status(500).json({ message: 'Failed to update category.' })
+  } finally {
+    client.release()
+  }
+})
+
+app.delete('/api/admin/categories/:id', requireAdminAuth, async (req, res) => {
+  const { rowCount } = await pool.query(`DELETE FROM categories WHERE id = $1`, [req.params.id])
+
+  if (!rowCount) {
+    return res.status(404).json({ message: 'Category not found.' })
+  }
+
+  return res.status(204).send()
+})
+
+app.post('/api/checkout', async (req, res) => {
+  const { customer, items, total, paymentMethod } = req.body
+  try {
+    // Create Order record with consolidated items
+    const orderRes = await pool.query(
+      `INSERT INTO orders (customer_name, customer_email, customer_phone, customer_address, total_amount, order_items, payment_method)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [customer.name, customer.email, customer.phone, `${customer.address}, ${customer.city}`, total, JSON.stringify(items), paymentMethod]
+    )
+    const orderId = orderRes.rows[0].id
+
+    if (paymentMethod === 'cod') {
+      return res.json({ success: true, orderId, method: 'cod' })
+    }
+
+    // Generate Safepay tracker for Online Payments
+    const tracker = `ORDER_${orderId}_${Math.floor(Math.random() * 1000)}`
+    await pool.query(`UPDATE orders SET safepay_tracker = $1 WHERE id = $2`, [tracker, orderId])
+
+    const checkoutBaseUrl = process.env.SAFEPAY_ENVIRONMENT === 'production'
+      ? 'https://checkout.getsafepay.com/checkout/pay'
+      : 'https://sandbox.api.getsafepay.com/checkout/pay';
+
+    const checkoutUrl = `${checkoutBaseUrl}?tracker=${tracker}&token=${process.env.SAFEPAY_PUBLIC_KEY}&amount=${total}&currency=PKR&source=custom`
+
+    res.json({ checkoutUrl, orderId })
+  } catch (error) {
+    console.error('Checkout error:', error)
+    res.status(500).json({ message: 'Failed to initialize checkout session.' })
+  }
 })
 
 app.post(
