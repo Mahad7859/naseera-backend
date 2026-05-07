@@ -36,6 +36,7 @@ app.use(
   }),
 )
 app.use(express.json())
+app.use(express.urlencoded({ extended: true }))
 app.use('/uploads', express.static(uploadsDir))
 
 async function initializeSchema() {
@@ -68,6 +69,8 @@ async function initializeSchema() {
       payment_method TEXT NOT NULL DEFAULT 'online',
       status TEXT NOT NULL DEFAULT 'pending',
       safepay_tracker TEXT,
+      cashmaal_order_id TEXT,
+      cashmaal_cm_tid TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `)
@@ -104,7 +107,9 @@ async function initializeSchema() {
     ADD COLUMN IF NOT EXISTS order_items JSONB DEFAULT '[]',
     ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'online',
     ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending',
-    ADD COLUMN IF NOT EXISTS safepay_tracker TEXT;
+    ADD COLUMN IF NOT EXISTS safepay_tracker TEXT,
+    ADD COLUMN IF NOT EXISTS cashmaal_order_id TEXT,
+    ADD COLUMN IF NOT EXISTS cashmaal_cm_tid TEXT;
   `)
 
   await pool.query(`
@@ -117,6 +122,13 @@ async function initializeSchema() {
     ADD COLUMN IF NOT EXISTS image_side TEXT DEFAULT '',
     ADD COLUMN IF NOT EXISTS is_featured BOOLEAN NOT NULL DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+  `)
+
+  await pool.query(`
+    ALTER TABLE categories
+    ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0,
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
   `)
@@ -144,6 +156,10 @@ function normalizeProduct(row) {
   }
 }
 
+/**
+ * Normalizes product row from database snake_case to frontend camelCase.
+ * Ensures consistency across the application.
+ */
 function normalizeHeroSlide(row) {
   return {
     ...row,
@@ -319,21 +335,13 @@ app.put('/api/admin/hero-slides/:id', requireAdminAuth, async (req, res) => {
      RETURNING *`,
     [image_url, title, subtitle, display_order, is_active, req.params.id]
   )
-
-  if (!rows[0]) {
-    return res.status(404).json({ message: 'Hero slide not found.' })
-  }
-
+  if (!rows[0]) return res.status(404).json({ message: 'Hero slide not found.' })
   return res.json(normalizeHeroSlide(rows[0]))
 })
 
 app.delete('/api/admin/hero-slides/:id', requireAdminAuth, async (req, res) => {
   const { rowCount } = await pool.query(`DELETE FROM hero_slides WHERE id = $1`, [req.params.id])
-
-  if (!rowCount) {
-    return res.status(404).json({ message: 'Hero slide not found.' })
-  }
-
+  if (!rowCount) return res.status(404).json({ message: 'Hero slide not found.' })
   return res.status(204).send()
 })
 
@@ -365,21 +373,17 @@ app.put('/api/admin/categories/:id', requireAdminAuth, async (req, res) => {
     }
     const oldName = oldCat.rows[0].name
     const newName = name.toLowerCase()
-
     const { rows } = await client.query(
       `UPDATE categories SET name = $1, image_url = $2, display_order = $3, updated_at = NOW() WHERE id = $4 RETURNING *`,
       [newName, image_url, display_order, req.params.id]
     )
-
     if (newName !== oldName) {
       await client.query('UPDATE products SET category = $1 WHERE category = $2', [newName, oldName])
     }
-
     await client.query('COMMIT')
     res.json(normalizeCategory(rows[0]))
   } catch (error) {
     await client.query('ROLLBACK')
-    console.error('Category update error:', error)
     res.status(500).json({ message: 'Failed to update category.' })
   } finally {
     client.release()
@@ -388,22 +392,33 @@ app.put('/api/admin/categories/:id', requireAdminAuth, async (req, res) => {
 
 app.delete('/api/admin/categories/:id', requireAdminAuth, async (req, res) => {
   const { rowCount } = await pool.query(`DELETE FROM categories WHERE id = $1`, [req.params.id])
-
-  if (!rowCount) {
-    return res.status(404).json({ message: 'Category not found.' })
-  }
-
+  if (!rowCount) return res.status(404).json({ message: 'Category not found.' })
   return res.status(204).send()
 })
 
 app.post('/api/checkout', async (req, res) => {
   const { customer, items, total, paymentMethod } = req.body
+  
   try {
-    // Create Order record with consolidated items
+    // Validate critical data to prevent DB crashes (NOT NULL constraints)
+    if (!customer || !customer.email || !items || !total) {
+      return res.status(400).json({ message: 'Missing order details. Email is required.' })
+    }
+
+    // 1. Create Order record
     const orderRes = await pool.query(
-      `INSERT INTO orders (customer_name, customer_email, customer_phone, customer_address, total_amount, order_items, payment_method)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-      [customer.name, customer.email, customer.phone, `${customer.address}, ${customer.city}`, total, JSON.stringify(items), paymentMethod]
+      `INSERT INTO orders (customer_name, customer_email, customer_phone, customer_address, total_amount, order_items, payment_method, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+      [
+        customer.name, 
+        customer.email, 
+        customer.phone, 
+        `${customer.address}, ${customer.city}`, 
+        total, 
+        JSON.stringify(items), 
+        paymentMethod || 'online',
+        paymentMethod === 'cod' ? 'pending_confirmation' : 'pending_payment'
+      ]
     )
     const orderId = orderRes.rows[0].id
 
@@ -411,22 +426,54 @@ app.post('/api/checkout', async (req, res) => {
       return res.json({ success: true, orderId, method: 'cod' })
     }
 
-    // Generate Safepay tracker for Online Payments
-    const tracker = `ORDER_${orderId}_${Math.floor(Math.random() * 1000)}`
-    await pool.query(`UPDATE orders SET safepay_tracker = $1 WHERE id = $2`, [tracker, orderId])
+    // 2. CashMaal Integration Logic
+    const cashmaalOrderId = `ORDER_${orderId}_${Date.now()}`
+    
+    await pool.query(
+      `UPDATE orders SET cashmaal_order_id = $1 WHERE id = $2`,
+      [cashmaalOrderId, orderId]
+    )
 
-    const checkoutBaseUrl = process.env.SAFEPAY_ENVIRONMENT === 'production'
-      ? 'https://checkout.getsafepay.com/checkout/pay'
-      : 'https://sandbox.api.getsafepay.com/checkout/pay';
+    res.json({ 
+      orderId,
+      cashmaalOrderId,
+      webId: process.env.CASHMAAL_WEB_ID,
+      amount: total,
+      currency: 'PKR',
+      customerEmail: customer.email,
+      customerName: customer.name,
+      successUrl: `${allowedOrigin}/order-success?orderId=${orderId}`,
+      cancelUrl: `${allowedOrigin}/checkout`
+    })
 
-    const checkoutUrl = `${checkoutBaseUrl}?tracker=${tracker}&token=${process.env.SAFEPAY_PUBLIC_KEY}&amount=${total}&currency=PKR&source=custom`
-
-    res.json({ checkoutUrl, orderId })
   } catch (error) {
-    console.error('Checkout error:', error)
-    res.status(500).json({ message: 'Failed to initialize checkout session.' })
+    console.error('CHECKOUT ERROR:', error)
+    res.status(500).json({ 
+      message: 'Failed to initialize checkout session.',
+      error: error.message 
+    })
   }
 })
+
+// CashMaal IPN (Webhook) Listener
+app.post('/api/webhooks/cashmaal', async (req, res) => {
+  const { status, cm_tid, order_id } = req.body;
+
+  try {
+    if (status === 'success') {
+      await pool.query(
+        `UPDATE orders SET status = 'paid', cashmaal_cm_tid = $1 
+         WHERE cashmaal_order_id = $2 AND status = 'pending_payment'`,
+        [cm_tid, order_id]
+      );
+      console.log(`[Webhook] Payment confirmed for Order: ${order_id}`);
+    }
+    res.status(200).send('OK');
+  } catch (err) {
+    console.error('[Webhook Error]:', err);
+    res.status(500).send('Webhook Processing Failed');
+  }
+});
 
 app.post(
   '/api/admin/upload-image',

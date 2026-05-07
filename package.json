@@ -13,6 +13,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@sfpy/node-sdk": "^3.0.2",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.10.0",
     "cors": "^2.8.6",
@@ -20,7 +21,7 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
-    "pg": "^8.20.0",
-    "nodemon": "^3.1.9"
+    "nodemon": "^3.1.9",
+    "pg": "^8.20.0"
   }
 }
