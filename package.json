@@ -2,10 +2,10 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "Backend API for Naseera Collection admin dashboard.",
-  "main": "src/server.js",
+  "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node src/server.js",
+    "start": "node server.js",
     "hash-password": "node src/utils/generateHash.js"
   },
   "keywords": [],
