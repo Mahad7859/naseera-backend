@@ -31,6 +31,7 @@ async function adminCreateProduct(req, res) {
     name, category, price,
     description = '', imageUrl = '', imageBack = '', imageSide = '',
     isFeatured = false, isVisible = true, stockQuantity = 10, isDraft = false,
+    discountPercentage = 0,
   } = req.body
 
   if (!name || !category || price === undefined) {
@@ -40,11 +41,11 @@ async function adminCreateProduct(req, res) {
   const { rows } = await pool.query(
     `INSERT INTO products
       (name, category, price, description, image_url, image_back, image_side,
-       is_featured, is_visible, stock_quantity, is_draft)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       is_featured, is_visible, stock_quantity, is_draft, discount_percentage)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
      RETURNING *`,
     [name, category, Number(price), description, imageUrl, imageBack, imageSide,
-     isFeatured, isVisible, Number(stockQuantity), isDraft],
+     isFeatured, isVisible, Number(stockQuantity), isDraft, Number(discountPercentage)],
   )
 
   return res.status(201).json(normalizeProduct(rows[0]))
@@ -55,6 +56,7 @@ async function adminUpdateProduct(req, res) {
     name, category, price,
     description = '', imageUrl = '', imageBack = '', imageSide = '',
     isFeatured = false, isVisible = true, stockQuantity = 10, isDraft = false,
+    discountPercentage = 0,
   } = req.body
 
   const { rows } = await pool.query(
@@ -62,11 +64,11 @@ async function adminUpdateProduct(req, res) {
      SET name=$1, category=$2, price=$3, description=$4,
          image_url=$5, image_back=$6, image_side=$7,
          is_featured=$8, is_visible=$9, stock_quantity=$10,
-         is_draft=$11, updated_at=NOW()
-     WHERE id=$12
+         is_draft=$11, discount_percentage=$12, updated_at=NOW()
+     WHERE id=$13
      RETURNING *`,
     [name, category, Number(price), description, imageUrl, imageBack, imageSide,
-     isFeatured, isVisible, Number(stockQuantity), isDraft, req.params.id],
+     isFeatured, isVisible, Number(stockQuantity), isDraft, Number(discountPercentage), req.params.id],
   )
 
   if (!rows[0]) return res.status(404).json({ message: 'Product not found.' })

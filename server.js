@@ -50,6 +50,10 @@ app.use((_req, res) => {
 
 // ── Global error handler ────────────────────────────────────
 app.use((error, _req, res, _next) => {
+  const fs = require('fs')
+  const logMessage = `[${new Date().toISOString()}] ${error.stack || error.message}\n`
+  fs.appendFileSync(path.join(__dirname, 'error.log'), logMessage)
+  
   console.error('Unhandled error:', error.message)
   const status = error.status || 500
   const message = status === 500 ? 'An unexpected server error occurred.' : error.message

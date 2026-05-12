@@ -28,7 +28,7 @@ async function adminUpdateOrderStatus(req, res) {
 }
 
 async function checkout(req, res) {
-  const { customer, items, total } = req.body
+  const { customer, items, total, shippingFee } = req.body
 
   // Validate required fields
   if (!customer?.name || !customer?.email || !items?.length || !total) {
@@ -41,28 +41,70 @@ async function checkout(req, res) {
     return res.status(400).json({ message: 'Invalid email address.' })
   }
 
-  const orderRes = await pool.query(
-    `INSERT INTO orders
-      (customer_name, customer_email, customer_phone, customer_address,
-       total_amount, order_items, payment_method, status)
-     VALUES ($1,$2,$3,$4,$5,$6,'cod','pending_confirmation')
-     RETURNING id`,
-    [
-      customer.name,
-      customer.email,
-      customer.phone || '',
-      `${customer.address || ''}, ${customer.city || ''}`.trim().replace(/^,\s*/, ''),
-      Number(total),
-      JSON.stringify(items),
-    ],
-  )
+  try {
+    const orderRes = await pool.query(
+      `INSERT INTO orders
+        (customer_name, customer_email, customer_phone, customer_address,
+         total_amount, order_items, payment_method, status, shipping_fee, province)
+       VALUES ($1,$2,$3,$4,$5,$6,'cod','pending_confirmation',$7,$8)
+       RETURNING id`,
+      [
+        customer.name,
+        customer.email,
+        customer.phone || '',
+        `${customer.address || ''}, ${customer.city || ''}`.trim().replace(/^,\s*/, ''),
+        Number(total),
+        JSON.stringify(items),
+        Number(shippingFee || 0),
+        customer.province || ''
+      ],
+    )
 
-  const orderId = orderRes.rows[0].id
+    const orderId = orderRes.rows[0].id
 
-  // Send email async — don't block response
-  sendOrderNotificationEmail(orderId, customer, items, total, 'cod', 'pending_confirmation')
+    // Deduct stock for each item purchased
+    for (const item of items) {
+      if (item.id) {
+        try {
+          await pool.query(
+            'UPDATE products SET stock_quantity = GREATEST(0, stock_quantity - $1) WHERE id = $2',
+            [item.quantity || 1, item.id]
+          );
+        } catch (stockError) {
+          console.error(`❌ Failed to deduct stock for Product #${item.id}:`, stockError.message);
+          // We don't throw here to ensure the order itself is still processed
+        }
+      }
+    }
 
-  return res.json({ success: true, orderId, method: 'cod' })
+    // Send email async — don't block response
+    sendOrderNotificationEmail(orderId, customer, items, total, 'cod', 'pending_confirmation', shippingFee, customer.province)
+
+    return res.json({
+      message: 'Order placed successfully',
+      orderId,
+    })
+  } catch (error) {
+    console.error('Checkout error:', error)
+    return res.status(500).json({ message: 'Internal server error during checkout.' })
+  }
 }
 
-module.exports = { adminGetOrders, adminUpdateOrderStatus, checkout }
+async function publicGetOrderTracking(req, res) {
+  const { id } = req.params
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM orders WHERE id=$1', 
+      [id]
+    )
+    
+    if (!rows[0]) return res.status(404).json({ message: 'Order not found.' })
+    
+    return res.json(normalizeOrder(rows[0]))
+  } catch (error) {
+    console.error('Tracking fetch error:', error)
+    return res.status(500).json({ message: 'Error fetching order tracking details.' })
+  }
+}
+
+module.exports = { adminGetOrders, adminUpdateOrderStatus, checkout, publicGetOrderTracking }

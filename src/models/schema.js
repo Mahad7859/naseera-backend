@@ -67,7 +67,9 @@ async function initializeSchema() {
     ADD COLUMN IF NOT EXISTS total_amount NUMERIC(12, 2),
     ADD COLUMN IF NOT EXISTS order_items JSONB DEFAULT '[]',
     ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'online',
-    ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+    ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending',
+    ADD COLUMN IF NOT EXISTS shipping_fee NUMERIC(10, 2) DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS province TEXT DEFAULT '';
   `)
 
   await pool.query(`

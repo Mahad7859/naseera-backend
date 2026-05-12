@@ -9,6 +9,7 @@ function normalizeProduct(row) {
     imageSide: row.image_side,
     isFeatured: row.is_featured,
     isVisible: row.is_visible,
+    discountPercentage: Number(row.discount_percentage || 0),
   }
 }
 
@@ -33,6 +34,8 @@ function normalizeOrder(row) {
     paymentMethod: row.payment_method,
     status: row.status,
     createdAt: row.created_at,
+    shippingFee: Number(row.shipping_fee || 0),
+    province: row.province || ''
   }
 }
 

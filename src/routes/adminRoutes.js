@@ -1,6 +1,6 @@
 const router = require('express').Router()
 const multer = require('multer')
-const { requireAdminAuth } = require('../middleware/auth')
+const { requireAdminAuth, requireAnyAuth } = require('../middleware/auth')
 const { loginLimiter } = require('../middleware/security')
 
 const { adminLogin } = require('../controllers/authController')
@@ -25,14 +25,14 @@ const upload = multer({ storage: multer.memoryStorage() })
 router.post('/login', loginLimiter, adminLogin)
 
 // Products
-router.get('/products',        requireAdminAuth, adminGetProducts)
+router.get('/products',        requireAnyAuth, adminGetProducts)
 router.post('/products',       requireAdminAuth, adminCreateProduct)
 router.put('/products/:id',    requireAdminAuth, adminUpdateProduct)
 router.delete('/products/:id', requireAdminAuth, adminDeleteProduct)
 router.get('/drafts',          requireAdminAuth, adminGetDrafts)
 
 // Orders
-router.get('/orders',                    requireAdminAuth, adminGetOrders)
+router.get('/orders',                    requireAnyAuth, adminGetOrders)
 router.patch('/orders/:id/status',       requireAdminAuth, adminUpdateOrderStatus)
 
 // Categories
