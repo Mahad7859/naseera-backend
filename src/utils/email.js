@@ -140,8 +140,11 @@ async function sendOrderNotificationEmail(orderId, customer, items, total, payme
       name: 'Naseera Collection',
       email: process.env.EMAIL_USER,
     },
-    to: [{ email: process.env.EMAIL_USER }],
-    subject: `New Order Received! — Order #${orderId} (${status.toUpperCase()})`,
+    to: [
+      { email: customer.email, name: customer.name },
+      { email: process.env.EMAIL_USER, name: 'Naseera Admin' }
+    ],
+    subject: `Order Confirmation — #${orderId} | Naseera Collection`,
     htmlContent,
   })
 
