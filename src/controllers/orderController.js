@@ -77,8 +77,8 @@ async function checkout(req, res) {
       }
     }
 
-    // Send email - MUST await in serverless environments (Vercel/Railway)
-    await sendOrderNotificationEmail(orderId, customer, items, total, 'cod', 'pending_confirmation', shippingFee, customer.province)
+    // Send email - removed await to prevent checkout from getting stuck if connection is slow/blocked
+    sendOrderNotificationEmail(orderId, customer, items, total, 'cod', 'pending_confirmation', shippingFee, customer.province)
 
     return res.json({
       message: 'Order placed successfully',
