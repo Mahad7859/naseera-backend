@@ -1,10 +1,24 @@
-const https = require('https')
+const nodemailer = require('nodemailer')
 
 // Log check for production debugging
-if (!process.env.BREVO_API_KEY) {
-  console.warn('⚠️  WARNING: BREVO_API_KEY is missing from environment variables. Emails will not send.')
+if (!process.env.SMTP_PASS) {
+  console.warn('⚠️  WARNING: SMTP_PASS is missing from environment variables. Emails will not send.')
 }
 
+// Create reusable transporter object using the default SMTP transport
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
+  port: parseInt(process.env.SMTP_PORT || '587'),
+  secure: false, // true for 465, false for other ports
+  auth: {
+    user: process.env.SMTP_USER || process.env.EMAIL_USER,
+    pass: process.env.SMTP_PASS,
+  },
+})
+
+/**
+ * Sends an order notification email to the admin.
+ */
 async function sendOrderNotificationEmail(orderId, customer, items, total, paymentMethod, status, shippingFee, province, city) {
   // Ensure all numeric values are actually numbers to avoid toLocaleString errors
   const numTotal = Number(total || 0)
@@ -138,56 +152,22 @@ async function sendOrderNotificationEmail(orderId, customer, items, total, payme
     </html>
   `
 
-  const payload = JSON.stringify({
-    sender: {
-      name: 'Naseera Collection',
-      email: process.env.EMAIL_USER,
-    },
-    to: [{ email: process.env.EMAIL_USER, name: 'Naseera Admin' }],
-    replyTo: { email: customer.email, name: customer.name },
+  const mailOptions = {
+    from: `"Naseera Collection" <${process.env.SMTP_USER || process.env.EMAIL_USER}>`,
+    to: process.env.EMAIL_USER,
+    replyTo: customer.email,
     subject: `New Order! #${orderId} — ${customer.name}`,
-    htmlContent,
-  })
+    html: htmlContent,
+  }
 
-  return new Promise((resolve) => {
-    const options = {
-      hostname: 'api.brevo.com',
-      path: '/v3/smtp/email',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'api-key': process.env.BREVO_API_KEY,
-        'Content-Length': Buffer.byteLength(payload),
-      },
-    }
-
-    const req = https.request(options, (apiRes) => {
-      let data = ''
-      apiRes.on('data', chunk => { data += chunk })
-      apiRes.on('end', () => {
-        if (apiRes.statusCode >= 200 && apiRes.statusCode < 300) {
-          console.log(`✅ Brevo Accepted: Order #${orderId}. Response: ${data}`)
-        } else {
-          console.error(`❌ Brevo Refused: Order #${orderId}: ${apiRes.statusCode} — ${data}`)
-        }
-        resolve()
-      })
-    })
-
-    req.on('error', (err) => {
-      console.error(`❌ Failed to send email for Order #${orderId}:`, err.message)
-      resolve()
-    })
-
-    req.setTimeout(10000, () => {
-      console.error(`❌ Email request timed out for Order #${orderId}`)
-      req.destroy()
-      resolve()
-    })
-
-    req.write(payload)
-    req.end()
-  })
+  try {
+    const info = await transporter.sendMail(mailOptions)
+    console.log(`✅ SMTP Email Sent: Order #${orderId}. MessageId: ${info.messageId}`)
+    return true
+  } catch (error) {
+    console.error(`❌ SMTP Email Error for Order #${orderId}:`, error.message)
+    return false
+  }
 }
 
 module.exports = { sendOrderNotificationEmail }
