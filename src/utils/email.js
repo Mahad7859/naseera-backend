@@ -1,12 +1,23 @@
 const nodemailer = require('nodemailer')
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, 
+  family: 4, // Force IPv4 to avoid ENETUNREACH
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
+  tls: {
+    rejectUnauthorized: false
+  }
 })
+
+// Log check for production debugging (not logging the actual password)
+if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+  console.warn('⚠️ WARNING: Email credentials (EMAIL_USER/EMAIL_PASS) are missing from environment variables.');
+}
 
 async function sendOrderNotificationEmail(orderId, customer, items, total, paymentMethod, status, shippingFee, province) {
   const subtotal = total - (shippingFee || 0);
