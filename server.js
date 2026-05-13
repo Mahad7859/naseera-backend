@@ -61,6 +61,7 @@ app.use((error, _req, res, _next) => {
 })
 
 // ── Start ────────────────────────────────────────────────────
+console.log('⏳ Initializing database schema...')
 initializeSchema()
   .then(() => {
     app.listen(PORT, () => {

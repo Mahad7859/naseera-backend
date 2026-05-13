@@ -1,20 +1,19 @@
-const nodemailer = require('nodemailer')
+const SibApiV3Sdk = require('sib-api-v3-sdk');
+
+// Configure Brevo API client
+const defaultClient = SibApiV3Sdk.ApiClient.instance;
+const apiKey = defaultClient.authentications['api-key'];
+apiKey.apiKey = process.env.BREVO_API_KEY;
+
+const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
 
 // Log check for production debugging
-if (!process.env.SMTP_PASS) {
-  console.warn('⚠️  WARNING: SMTP_PASS is missing from environment variables. Emails will not send.')
+if (!process.env.BREVO_API_KEY) {
+  console.warn('⚠️  WARNING: BREVO_API_KEY is missing from environment variables. Emails will not send via Brevo API.');
+} else {
+  console.log('✅ Brevo HTTP API Client Initialized.');
 }
 
-// Create reusable transporter object using the default SMTP transport
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: false, // true for 465, false for other ports
-  auth: {
-    user: process.env.SMTP_USER || process.env.EMAIL_USER,
-    pass: process.env.SMTP_PASS,
-  },
-})
 
 /**
  * Sends an order notification email to the admin.
@@ -152,22 +151,29 @@ async function sendOrderNotificationEmail(orderId, customer, items, total, payme
     </html>
   `
 
-  const mailOptions = {
-    from: `"Naseera Collection" <${process.env.SMTP_USER || process.env.EMAIL_USER}>`,
-    to: process.env.EMAIL_USER,
-    replyTo: customer.email,
-    subject: `New Order! #${orderId} — ${customer.name}`,
-    html: htmlContent,
-  }
+  const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail(); // Use SendSmtpEmail for transactional emails
+
+  sendSmtpEmail.sender = {
+    name: "Naseera Collection",
+    email: process.env.EMAIL_USER // This email must be a verified sender in Brevo
+  };
+  sendSmtpEmail.to = [{ email: process.env.EMAIL_USER, name: "Naseera Admin" }];
+  sendSmtpEmail.replyTo = { email: customer.email, name: customer.name };
+  sendSmtpEmail.subject = `New Order! #${orderId} — ${customer.name}`;
+  sendSmtpEmail.htmlContent = htmlContent;
 
   try {
-    const info = await transporter.sendMail(mailOptions)
-    console.log(`✅ SMTP Email Sent: Order #${orderId}. MessageId: ${info.messageId}`)
-    return true
+    const data = await apiInstance.sendTransacEmail(sendSmtpEmail);
+    console.log(`✅ Brevo HTTP API Email Sent: Order #${orderId}. Response: ${JSON.stringify(data)}`);
+    return true;
   } catch (error) {
-    console.error(`❌ SMTP Email Error for Order #${orderId}:`, error.message)
-    return false
+    console.error(`❌ Brevo HTTP API Email Error for Order #${orderId}:`, error.message);
+    // Log the full error response from Brevo if available
+    if (error.response && error.response.text) {
+      console.error('Brevo API Error Details:', error.response.text);
+    }
+    return false;
   }
 }
 
-module.exports = { sendOrderNotificationEmail }
+module.exports = { sendOrderNotificationEmail };
