@@ -5,8 +5,11 @@ if (!process.env.BREVO_API_KEY) {
   console.warn('⚠️  WARNING: BREVO_API_KEY is missing from environment variables. Emails will not send.')
 }
 
-async function sendOrderNotificationEmail(orderId, customer, items, total, paymentMethod, status, shippingFee, province) {
-  const subtotal = total - (shippingFee || 0)
+async function sendOrderNotificationEmail(orderId, customer, items, total, paymentMethod, status, shippingFee, province, city) {
+  // Ensure all numeric values are actually numbers to avoid toLocaleString errors
+  const numTotal = Number(total || 0)
+  const numShipping = Number(shippingFee || 0)
+  const subtotal = numTotal - numShipping
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -67,7 +70,7 @@ async function sendOrderNotificationEmail(orderId, customer, items, total, payme
             </tr>
             <tr>
               <td class="info-label">Shipping To</td>
-              <td class="info-value">${province}</td>
+              <td class="info-value">${city ? `${city}, ` : ''}${province || 'Not specified'}</td>
             </tr>
           </table>
           
@@ -93,17 +96,17 @@ async function sendOrderNotificationEmail(orderId, customer, items, total, payme
           
           <div class="section-title">Summary</div>
           <table style="width: 100%; border-collapse: collapse;">
-            ${items.map(item => `
+            ${(items || []).map(item => `
               <tr class="item-row">
                 <td style="width: 70px; padding: 15px 0;">
                   ${item.imageUrl ? `<img src="${item.imageUrl}" class="item-img" alt="${item.name}">` : '<div style="width: 60px; height: 60px; background: #f9f5f0; border-radius: 4px;"></div>'}
                 </td>
                 <td class="item-details">
                   <span class="item-name">${item.name}</span>
-                  <span class="item-meta">Quantity: ${item.quantity}</span>
+                  <span class="item-meta">Quantity: ${item.quantity || 1}</span>
                 </td>
                 <td class="item-price">
-                  PKR ${Number(item.price * item.quantity).toLocaleString()}
+                  PKR ${Number((item.price || 0) * (item.quantity || 1)).toLocaleString()}
                 </td>
               </tr>
             `).join('')}
@@ -112,15 +115,15 @@ async function sendOrderNotificationEmail(orderId, customer, items, total, payme
           <table class="totals-table">
             <tr class="total-row">
               <td style="color: #8b7355;">Subtotal</td>
-              <td style="text-align: right; font-weight: 600;">PKR ${subtotal.toLocaleString()}</td>
+              <td style="text-align: right; font-weight: 600;">PKR ${Number(subtotal).toLocaleString()}</td>
             </tr>
             <tr class="total-row">
               <td style="color: #8b7355;">Shipping</td>
-              <td style="text-align: right; font-weight: 600;">PKR ${(shippingFee || 0).toLocaleString()}</td>
+              <td style="text-align: right; font-weight: 600;">PKR ${numShipping.toLocaleString()}</td>
             </tr>
             <tr class="total-row grand-total">
               <td>Total Amount</td>
-              <td style="text-align: right; color: #c5a059;">PKR ${Number(total).toLocaleString()}</td>
+              <td style="text-align: right; color: #c5a059;">PKR ${numTotal.toLocaleString()}</td>
             </tr>
           </table>
         </div>
@@ -140,9 +143,9 @@ async function sendOrderNotificationEmail(orderId, customer, items, total, payme
       name: 'Naseera Collection',
       email: process.env.EMAIL_USER,
     },
-    // NOTE: email: process.env.EMAIL_USER must be a verified sender in your Brevo Dashboard
     to: [{ email: process.env.EMAIL_USER, name: 'Naseera Admin' }],
-    subject: `Order Confirmation — #${orderId} | Naseera Collection`,
+    replyTo: { email: customer.email, name: customer.name },
+    subject: `New Order! #${orderId} — ${customer.name}`,
     htmlContent,
   })
 
@@ -163,9 +166,9 @@ async function sendOrderNotificationEmail(orderId, customer, items, total, payme
       apiRes.on('data', chunk => { data += chunk })
       apiRes.on('end', () => {
         if (apiRes.statusCode >= 200 && apiRes.statusCode < 300) {
-          console.log(`✅ Order notification email sent for Order #${orderId}`)
+          console.log(`✅ Brevo Accepted: Order #${orderId}. Response: ${data}`)
         } else {
-          console.error(`❌ Brevo API error for Order #${orderId}: ${apiRes.statusCode} — ${data}`)
+          console.error(`❌ Brevo Refused: Order #${orderId}: ${apiRes.statusCode} — ${data}`)
         }
         resolve()
       })

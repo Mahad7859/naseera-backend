@@ -79,7 +79,7 @@ async function checkout(req, res) {
 
     // Send notification email to admin
     try {
-      await sendOrderNotificationEmail(orderId, customer, items, total, 'cod', 'pending_confirmation', shippingFee, customer.province)
+      await sendOrderNotificationEmail(orderId, customer, items, total, 'cod', 'pending_confirmation', shippingFee, customer.province, customer.city)
     } catch (emailError) {
       console.error('📧 Email notification failed but order was saved:', emailError.message)
     }
