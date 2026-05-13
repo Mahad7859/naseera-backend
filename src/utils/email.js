@@ -109,20 +109,23 @@ async function sendOrderNotificationEmail(orderId, customer, items, total, payme
           
           <div class="section-title">Summary</div>
           <table style="width: 100%; border-collapse: collapse;">
-            ${(items || []).map(item => `
-              <tr class="item-row">
-                <td style="width: 70px; padding: 15px 0;">
-                  ${item.imageUrl ? `<img src="${item.imageUrl}" class="item-img" alt="${item.name}">` : '<div style="width: 60px; height: 60px; background: #f9f5f0; border-radius: 4px;"></div>'}
-                </td>
-                <td class="item-details">
-                  <span class="item-name">${item.name}</span>
-                  <span class="item-meta">Quantity: ${item.quantity || 1}</span>
-                </td>
-                <td class="item-price">
-                  PKR ${Number((item.price || 0) * (item.quantity || 1)).toLocaleString()}
-                </td>
-              </tr>
-            `).join('')}
+            ${(items || []).map(item => {
+              const itemImg = item.image_url || item.imageUrl || item.image;
+              return `
+                <tr class="item-row">
+                  <td style="width: 70px; padding: 15px 0;">
+                    ${itemImg ? `<img src="${itemImg}" class="item-img" alt="${item.name}">` : '<div style="width: 60px; height: 60px; background: #f9f5f0; border-radius: 4px;"></div>'}
+                  </td>
+                  <td class="item-details">
+                    <span class="item-name">${item.name}</span>
+                    <span class="item-meta">Quantity: ${item.quantity || 1}</span>
+                  </td>
+                  <td class="item-price">
+                    PKR ${Number((item.price || 0) * (item.quantity || 1)).toLocaleString()}
+                  </td>
+                </tr>
+              `;
+            }).join('')}
           </table>
           
           <table class="totals-table">
