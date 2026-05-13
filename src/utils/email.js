@@ -9,62 +9,130 @@ async function sendOrderNotificationEmail(orderId, customer, items, total, payme
   const subtotal = total - (shippingFee || 0)
 
   const htmlContent = `
-    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
-      <h2 style="color: #c5a059; text-align: center; border-bottom: 2px solid #f9f5f0; padding-bottom: 15px;">New Order Alert!</h2>
-      <p>A new order has been placed on <strong>Naseera Collection</strong>.</p>
-
-      <h3 style="color: #4a3f35; border-bottom: 1px solid #eee; padding-bottom: 5px;">Order Details (ID: #${orderId})</h3>
-      <p style="margin: 5px 0;"><strong>Status:</strong>
-        <span style="color: #ffc107; font-weight: bold; text-transform: uppercase;">
-          ${status.replace('_', ' ')}
-        </span>
-      </p>
-      <p style="margin: 5px 0;"><strong>Payment:</strong> ${paymentMethod.toUpperCase()}</p>
-      <p style="margin: 5px 0;"><strong>Province:</strong> ${province || 'Not specified'}</p>
-
-      <h3 style="color: #4a3f35; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-top: 20px;">Customer Information</h3>
-      <p style="margin: 5px 0;"><strong>Name:</strong> ${customer.name}</p>
-      <p style="margin: 5px 0;"><strong>Email:</strong> ${customer.email}</p>
-      <p style="margin: 5px 0;"><strong>Phone:</strong> ${customer.phone}</p>
-      <p style="margin: 5px 0;"><strong>Address:</strong> ${customer.address}</p>
-
-      <h3 style="color: #4a3f35; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-top: 20px;">Items Ordered</h3>
-      <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-        <tr style="background-color: #f9f5f0;">
-          <th style="padding: 10px; border: 1px solid #eee; text-align: left;">Product</th>
-          <th style="padding: 10px; border: 1px solid #eee; text-align: center;">Qty</th>
-          <th style="padding: 10px; border: 1px solid #eee; text-align: right;">Price</th>
-        </tr>
-        ${items.map(item => `
-          <tr>
-            <td style="padding: 10px; border: 1px solid #eee;">${item.name}</td>
-            <td style="padding: 10px; border: 1px solid #eee; text-align: center;">${item.quantity}</td>
-            <td style="padding: 10px; border: 1px solid #eee; text-align: right;">
-              PKR ${Number(item.price).toLocaleString()}
-            </td>
-          </tr>
-        `).join('')}
-      </table>
-
-      <div style="background: #fcfaf7; padding: 15px; border-radius: 8px; border: 1px solid #f0e6d2;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-          <span style="color: #8b7355;">Subtotal:</span>
-          <span style="font-weight: 600;">PKR ${subtotal.toLocaleString()}</span>
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        .email-wrapper { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; line-height: 1.6; color: #2c241b; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .header { background-color: #2c241b; padding: 30px; text-align: center; }
+        .header h1 { color: #c5a059; margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 3px; font-weight: 300; }
+        .content { padding: 40px 30px; }
+        .order-banner { background-color: #fcfaf7; border: 1px solid #f0e6d2; padding: 20px; border-radius: 4px; margin-bottom: 30px; text-align: center; }
+        .order-id { font-size: 18px; font-weight: bold; color: #4a3f35; margin-bottom: 5px; }
+        .order-status { display: inline-block; padding: 4px 12px; background-color: #c5a059; color: white; border-radius: 20px; font-size: 12px; text-transform: uppercase; font-weight: bold; }
+        
+        .section-title { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #8b7355; border-bottom: 1px solid #f0e6d2; padding-bottom: 8px; margin: 30px 0 15px; font-weight: bold; }
+        
+        .info-grid { width: 100%; border-collapse: collapse; }
+        .info-label { width: 30%; color: #8b7355; font-size: 13px; padding: 5px 0; vertical-align: top; }
+        .info-value { width: 70%; font-weight: 600; font-size: 14px; padding: 5px 0; color: #2c241b; }
+        
+        .item-row { border-bottom: 1px solid #f9f5f0; }
+        .item-img { width: 60px; height: 60px; object-fit: cover; border-radius: 4px; border: 1px solid #f0e6d2; }
+        .item-details { padding: 15px 0; vertical-align: middle; }
+        .item-name { font-weight: 600; font-size: 14px; display: block; }
+        .item-meta { color: #8b7355; font-size: 12px; }
+        .item-price { text-align: right; font-weight: 600; font-size: 14px; padding: 15px 0; color: #c5a059; }
+        
+        .totals-table { width: 100%; margin-top: 20px; }
+        .total-row td { padding: 5px 0; font-size: 14px; }
+        .total-row.grand-total td { padding-top: 15px; border-top: 2px solid #f0e6d2; font-size: 18px; font-weight: bold; color: #2c241b; }
+        
+        .footer { background-color: #f9f5f0; padding: 30px; text-align: center; color: #8b7355; font-size: 12px; }
+        .footer p { margin: 5px 0; }
+      </style>
+    </head>
+    <body>
+      <div class="email-wrapper">
+        <div class="header">
+          <h1>Naseera Collection</h1>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-          <span style="color: #8b7355;">Shipping Fee:</span>
-          <span style="font-weight: 600;">PKR ${(shippingFee || 0).toLocaleString()}</span>
+        
+        <div class="content">
+          <div class="order-banner">
+            <div class="order-id">New Order Received!</div>
+            <div class="order-status">${status.replace('_', ' ')}</div>
+          </div>
+          
+          <div class="section-title">Order Information</div>
+          <table class="info-grid">
+            <tr>
+              <td class="info-label">Order ID</td>
+              <td class="info-value">#${orderId}</td>
+            </tr>
+            <tr>
+              <td class="info-label">Payment Method</td>
+              <td class="info-value">${paymentMethod.toUpperCase()}</td>
+            </tr>
+            <tr>
+              <td class="info-label">Shipping To</td>
+              <td class="info-value">${province}</td>
+            </tr>
+          </table>
+          
+          <div class="section-title">Customer Details</div>
+          <table class="info-grid">
+            <tr>
+              <td class="info-label">Name</td>
+              <td class="info-value">${customer.name}</td>
+            </tr>
+            <tr>
+              <td class="info-label">Phone</td>
+              <td class="info-value">${customer.phone}</td>
+            </tr>
+            <tr>
+              <td class="info-label">Email</td>
+              <td class="info-value">${customer.email}</td>
+            </tr>
+            <tr>
+              <td class="info-label">Address</td>
+              <td class="info-value">${customer.address}</td>
+            </tr>
+          </table>
+          
+          <div class="section-title">Summary</div>
+          <table style="width: 100%; border-collapse: collapse;">
+            ${items.map(item => `
+              <tr class="item-row">
+                <td style="width: 70px; padding: 15px 0;">
+                  ${item.image_url ? `<img src="${item.image_url}" class="item-img" alt="${item.name}">` : '<div style="width: 60px; height: 60px; background: #f9f5f0; border-radius: 4px;"></div>'}
+                </td>
+                <td class="item-details">
+                  <span class="item-name">${item.name}</span>
+                  <span class="item-meta">Quantity: ${item.quantity}</span>
+                </td>
+                <td class="item-price">
+                  PKR ${Number(item.price * item.quantity).toLocaleString()}
+                </td>
+              </tr>
+            `).join('')}
+          </table>
+          
+          <table class="totals-table">
+            <tr class="total-row">
+              <td style="color: #8b7355;">Subtotal</td>
+              <td style="text-align: right; font-weight: 600;">PKR ${subtotal.toLocaleString()}</td>
+            </tr>
+            <tr class="total-row">
+              <td style="color: #8b7355;">Shipping</td>
+              <td style="text-align: right; font-weight: 600;">PKR ${(shippingFee || 0).toLocaleString()}</td>
+            </tr>
+            <tr class="total-row grand-total">
+              <td>Total Amount</td>
+              <td style="text-align: right; color: #c5a059;">PKR ${Number(total).toLocaleString()}</td>
+            </tr>
+          </table>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 1px solid #e5d5c3; font-size: 1.2rem;">
-          <span style="color: #2c241b; font-weight: bold;">Total Amount:</span>
-          <span style="color: #c5a059; font-weight: bold;">PKR ${Number(total).toLocaleString()}</span>
+        
+        <div class="footer">
+          <p><strong>Naseera Collection</strong></p>
+          <p>Handcrafted Elegance | Faisalabad, Pakistan</p>
+          <p>© 2026 Naseera Collection. All rights reserved.</p>
         </div>
       </div>
-
-      <p style="text-align: center; margin-top: 30px; color: #8b7355; font-size: 0.8rem;">
-        Thank you for using Naseera Collection!
-      </p>
-    </div>
+    </body>
+    </html>
   `
 
   const payload = JSON.stringify({
@@ -104,7 +172,7 @@ async function sendOrderNotificationEmail(orderId, customer, items, total, payme
 
     req.on('error', (err) => {
       console.error(`❌ Failed to send email for Order #${orderId}:`, err.message)
-      resolve() // Don't reject — email failure should not break the order
+      resolve()
     })
 
     req.setTimeout(10000, () => {
