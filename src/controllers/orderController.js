@@ -77,8 +77,12 @@ async function checkout(req, res) {
       }
     }
 
-    // Send email - removed await to prevent checkout from getting stuck if connection is slow/blocked
-    sendOrderNotificationEmail(orderId, customer, items, total, 'cod', 'pending_confirmation', shippingFee, customer.province)
+    // Send notification email to admin
+    try {
+      await sendOrderNotificationEmail(orderId, customer, items, total, 'cod', 'pending_confirmation', shippingFee, customer.province)
+    } catch (emailError) {
+      console.error('📧 Email notification failed but order was saved:', emailError.message)
+    }
 
     return res.json({
       message: 'Order placed successfully',

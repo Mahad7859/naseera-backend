@@ -96,7 +96,7 @@ async function sendOrderNotificationEmail(orderId, customer, items, total, payme
             ${items.map(item => `
               <tr class="item-row">
                 <td style="width: 70px; padding: 15px 0;">
-                  ${item.image_url ? `<img src="${item.image_url}" class="item-img" alt="${item.name}">` : '<div style="width: 60px; height: 60px; background: #f9f5f0; border-radius: 4px;"></div>'}
+                  ${item.imageUrl ? `<img src="${item.imageUrl}" class="item-img" alt="${item.name}">` : '<div style="width: 60px; height: 60px; background: #f9f5f0; border-radius: 4px;"></div>'}
                 </td>
                 <td class="item-details">
                   <span class="item-name">${item.name}</span>
@@ -140,6 +140,7 @@ async function sendOrderNotificationEmail(orderId, customer, items, total, payme
       name: 'Naseera Collection',
       email: process.env.EMAIL_USER,
     },
+    // NOTE: email: process.env.EMAIL_USER must be a verified sender in your Brevo Dashboard
     to: [{ email: process.env.EMAIL_USER, name: 'Naseera Admin' }],
     subject: `Order Confirmation — #${orderId} | Naseera Collection`,
     htmlContent,
@@ -157,14 +158,14 @@ async function sendOrderNotificationEmail(orderId, customer, items, total, payme
       },
     }
 
-    const req = https.request(options, (res) => {
+    const req = https.request(options, (apiRes) => {
       let data = ''
-      res.on('data', chunk => { data += chunk })
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
+      apiRes.on('data', chunk => { data += chunk })
+      apiRes.on('end', () => {
+        if (apiRes.statusCode >= 200 && apiRes.statusCode < 300) {
           console.log(`✅ Order notification email sent for Order #${orderId}`)
         } else {
-          console.error(`❌ Brevo API error for Order #${orderId}: ${res.statusCode} — ${data}`)
+          console.error(`❌ Brevo API error for Order #${orderId}: ${apiRes.statusCode} — ${data}`)
         }
         resolve()
       })
