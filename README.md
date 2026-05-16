@@ -1,54 +1,40 @@
-## Backend Setup
+## Naseera Collection — Backend API
 
-This backend provides:
+This is the Node.js/Express backend powering the Naseera Collection platform.
 
-- single-admin login
-- product CRUD
-- sale ad CRUD
-- image upload endpoint
-- Neon/Postgres storage
+### Core Features
+- **Stateless Auth**: JWT-based authentication for Admin and Supplier (Uncle) roles.
+- **Product & Inventory**: Full CRUD for products, automated stock deduction, and scarcity tracking.
+- **Order Management**: Status tracking (Informed, Packed, Shipped, Delivered) and printable receipt generation.
+- **Transactional Email**: Integrated with **Brevo HTTP API** for reliable order notifications in serverless environments.
+- **Storage**: Cloudinary CDN integration for automated image management.
 
-### 1. Install and configure
+### Setup & Installation
 
-Copy `.env.example` to `.env` and fill in:
+1. **Install dependencies**:
+   ```bash
+   npm install
+   ```
 
-- `DATABASE_URL`
-- `ADMIN_USERNAME`
-- `JWT_SECRET`
+2. **Configure Environment Variables**:
+   Create a `.env` file with the following:
+   - `DATABASE_URL`: Neon PostgreSQL connection string.
+   - `JWT_SECRET`: Secret key for token signing.
+   - `EMAIL_USER`: Verified sender email in Brevo.
+   - `BREVO_API_KEY`: Brevo API Key v3.
+   - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`: Media storage credentials.
+   - `FRONTEND_URL`: CORS allowed origin (e.g., your Vercel URL).
 
-Generate a password hash:
+3. **Database Initialization**:
+   The backend automatically initializes the PostgreSQL schema on startup via `initializeSchema()`.
 
-```bash
-npm run hash-password -- "your-password"
-```
+4. **Start Development Server**:
+   ```bash
+   npm run dev
+   ```
+   The API will be accessible at `http://localhost:4000`.
 
-Put the generated value into `ADMIN_PASSWORD_HASH`.
-
-### 2. Start the API
-
-```bash
-npm install
-npm run dev
-```
-
-The API runs on `http://localhost:4000`.
-
-### 3. Admin features included
-
-- Login
-- Add new purses
-- Edit prices
-- Toggle visibility/featured products
-- Create and edit sale ads
-- Upload product images
-## Backend (Planned)
-
-This folder is reserved for the API/backend service.
-
-Suggested next steps:
-- Initialize with `npm init -y`
-- Add `express` and basic route structure
-- Add environment-based config (`.env`)
-- Connect to your preferred database
-
-For now, frontend development is the focus.
+### Key Scripts
+- `npm run dev`: Starts the server with `nodemon` for development.
+- `npm start`: Production startup script.
+- `node src/scripts/check_orders.js`: Utility to manually check and log order counts.

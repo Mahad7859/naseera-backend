@@ -10,6 +10,8 @@ function normalizeProduct(row) {
     isFeatured: row.is_featured,
     isVisible: row.is_visible,
     discountPercentage: Number(row.discount_percentage || 0),
+    length: row.length || '',
+    width: row.width || '',
   }
 }
 

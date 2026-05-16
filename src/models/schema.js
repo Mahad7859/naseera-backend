@@ -15,6 +15,9 @@ async function initializeSchema() {
       is_visible BOOLEAN NOT NULL DEFAULT TRUE,
       stock_quantity INTEGER NOT NULL DEFAULT 10,
       is_draft BOOLEAN NOT NULL DEFAULT FALSE,
+      discount_percentage NUMERIC(5, 2) DEFAULT 0,
+      length TEXT DEFAULT '',
+      width TEXT DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -84,6 +87,9 @@ async function initializeSchema() {
     ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE,
     ADD COLUMN IF NOT EXISTS stock_quantity INTEGER NOT NULL DEFAULT 10,
     ADD COLUMN IF NOT EXISTS is_draft BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS discount_percentage NUMERIC(5, 2) DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS length TEXT DEFAULT '',
+    ADD COLUMN IF NOT EXISTS width TEXT DEFAULT '',
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
   `)

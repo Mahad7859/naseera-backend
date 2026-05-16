@@ -33,10 +33,10 @@ router.get('/drafts',          requireAdminAuth, adminGetDrafts)
 
 // Orders
 router.get('/orders',                    requireAnyAuth, adminGetOrders)
-router.patch('/orders/:id/status',       requireAdminAuth, adminUpdateOrderStatus)
+router.patch('/orders/:id/status',       requireAnyAuth, adminUpdateOrderStatus)
 
 // Categories
-router.get('/categories',        requireAdminAuth, adminGetCategories)
+router.get('/categories',        requireAnyAuth, adminGetCategories)
 router.post('/categories',       requireAdminAuth, adminCreateCategory)
 router.put('/categories/:id',    requireAdminAuth, adminUpdateCategory)
 router.delete('/categories/:id', requireAdminAuth, adminDeleteCategory)
@@ -48,6 +48,6 @@ router.put('/hero-slides/:id',    requireAdminAuth, adminUpdateHeroSlide)
 router.delete('/hero-slides/:id', requireAdminAuth, adminDeleteHeroSlide)
 
 // Image Upload
-router.post('/upload-image', requireAdminAuth, upload.single('image'), uploadImage)
+router.post('/upload-image', requireAnyAuth, upload.single('image'), uploadImage)
 
 module.exports = router
