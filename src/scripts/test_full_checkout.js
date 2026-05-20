@@ -14,8 +14,8 @@ async function testCheckout() {
       items: [
         { id: 1, name: 'Handbag', price: 5000, quantity: 1 }
       ],
-      total: 5180,
-      shippingFee: 180
+      total: 5235,
+      shippingFee: 235
     };
 
     console.log('Sending checkout request...');
