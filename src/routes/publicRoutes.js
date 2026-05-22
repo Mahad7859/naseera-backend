@@ -4,6 +4,7 @@ const { getCategories } = require('../controllers/categoryController')
 const { getHeroSlides } = require('../controllers/heroSlideController')
 const { checkout, publicGetOrderTracking } = require('../controllers/orderController')
 const { checkoutLimiter } = require('../middleware/security')
+const { getSitemap } = require('../controllers/sitemapController')
 
 router.get('/health', (_req, res) => res.json({ ok: true }))
 
@@ -11,6 +12,7 @@ router.get('/products', getProducts)
 router.get('/categories', getCategories)
 router.get('/hero-slides', getHeroSlides)
 router.get('/orders/:id/track', publicGetOrderTracking)
+router.get('/sitemap.xml', getSitemap)
 
 router.post('/checkout', checkoutLimiter, checkout)
 
