@@ -1,11 +1,18 @@
 const pool = require('../config/db')
 const { normalizeOrder } = require('../utils/normalizers')
 const { sendOrderNotificationEmail } = require('../utils/email')
+const { updateFinancialSheet } = require('../utils/sheetsApi')
+const axios = require('axios')
 
 const VALID_STATUSES = ['pending_confirmation', 'informed', 'packed', 'shipped', 'delivered', 'cancelled']
 
 async function adminGetOrders(_req, res) {
-  const { rows } = await pool.query('SELECT * FROM orders ORDER BY created_at DESC')
+  const { rows } = await pool.query(
+    `SELECT orders.*, m.pdf_url AS manifest_pdf_url
+     FROM orders
+     LEFT JOIN manifests m ON orders.manifest_id = m.id
+     ORDER BY orders.created_at DESC`
+  )
   return res.json(rows.map(normalizeOrder))
 }
 
@@ -45,8 +52,8 @@ async function checkout(req, res) {
     const orderRes = await pool.query(
       `INSERT INTO orders
         (customer_name, customer_email, customer_phone, customer_address,
-         total_amount, order_items, payment_method, status, shipping_fee, province)
-       VALUES ($1,$2,$3,$4,$5,$6,'cod','pending_confirmation',$7,$8)
+         total_amount, order_items, payment_method, status, shipping_fee, province, city_id)
+       VALUES ($1,$2,$3,$4,$5,$6,'cod','pending_confirmation',$7,$8,$9)
        RETURNING id`,
       [
         customer.name,
@@ -56,7 +63,8 @@ async function checkout(req, res) {
         Number(total),
         JSON.stringify(items),
         Number(shippingFee || 0),
-        customer.province || ''
+        customer.province || '',
+        customer.cityId || null
       ],
     )
 
@@ -111,4 +119,150 @@ async function publicGetOrderTracking(req, res) {
   }
 }
 
-module.exports = { adminGetOrders, adminUpdateOrderStatus, checkout, publicGetOrderTracking }
+async function confirmOrderWithTrax(req, res) {
+  const { orderId } = req.params;
+  try {
+    const { rows } = await pool.query('SELECT * FROM orders WHERE id = $1', [orderId]);
+    const order = rows[0];
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    const traxResponse = await axios.post('https://sonic.pk/api/shipment/book', {
+      service_type_id: 1,
+      pickup_city_id: process.env.TRAX_PICKUP_CITY_ID || 144,
+      consignee_city_id: order.city_id || 223,
+      consignee_name: order.customer_name,
+      consignee_address: order.customer_address,
+      consignee_phone_number_1: order.customer_phone,
+      order_id: `NC-${order.id}`,
+      item_product_type_id: 1,
+      item_description: "Handcrafted Purse",
+      item_quantity: 1,
+      weight: 0.5,
+      estimated_weight: 0.5,
+      shipping_mode_id: 1,
+      amount: order.total_amount,
+      payment_mode_id: 1,
+      charges_mode_id: 4
+    }, {
+      headers: { 'Authorization': process.env.TRAX_API_KEY }
+    });
+
+    const trackingNumber = traxResponse.data.tracking_number;
+    await pool.query(
+      'UPDATE orders SET tracking_number = $1, status = $2, trax_status = $3 WHERE id = $4',
+      [trackingNumber, 'confirmed', 'booked', orderId]
+    );
+
+    return res.json({ success: true, tracking_number: trackingNumber });
+  } catch (error) {
+    console.error('TRAX Booking Error:', error.message);
+    return res.status(500).json({ message: 'TRAX Booking Failed' });
+  }
+}
+
+async function getTraxLabel(req, res) {
+  const { trackingNumber } = req.params;
+  const labelUrl = `https://sonic.pk/api/shipment/print_waybill?tracking_number=${trackingNumber}`;
+  return res.json({ labelUrl });
+}
+
+async function dispatchOrders(req, res) {
+  const { trackingNumbers } = req.body;
+  try {
+    const sheetRes = await axios.post('https://sonic.pk/api/receiving_sheet/create', 
+      { tracking_numbers: trackingNumbers },
+      { headers: { 'Authorization': process.env.TRAX_API_KEY } }
+    );
+
+    const sheetId = sheetRes.data.sheet_id;
+    const manifestUrl = `https://sonic.pk/api/receiving_sheet/print?sheet_id=${sheetId}`;
+
+    const manifestResult = await pool.query(
+      'INSERT INTO manifests (trax_sheet_id, pdf_url) VALUES ($1, $2) RETURNING id',
+      [sheetId, manifestUrl]
+    );
+
+    await pool.query(
+      'UPDATE orders SET status = $1, trax_status = $2, manifest_id = $3 WHERE tracking_number = ANY($4)',
+      ['shipped', 'dispatched', manifestResult.rows[0].id, trackingNumbers]
+    );
+
+    return res.json({ success: true, manifestUrl });
+  } catch (error) {
+    return res.status(500).json({ message: 'Dispatch Failed' });
+  }
+}
+
+async function updateOrderManifest(req, res) {
+  const { orderId } = req.params;
+  const { manifestId } = req.body;
+  await pool.query('UPDATE orders SET manifest_id = $1 WHERE id = $2', [manifestId, orderId]);
+  return res.json({ success: true });
+}
+
+/**
+ * POST /api/admin/orders/:id/complete
+ * Logs the order to Google Sheets and marks it as 'Completed' in the DB.
+ * Expects { cost_price, courier_fee } in the request body.
+ */
+async function completeOrder(req, res) {
+  const { id } = req.params
+  const { cost_price, courier_fee } = req.body
+
+  if (cost_price === undefined || cost_price === null) {
+    return res.status(400).json({ message: 'cost_price is required to complete an order.' })
+  }
+
+  try {
+    // 1. Fetch the order
+    const { rows } = await pool.query('SELECT * FROM orders WHERE id = $1', [id])
+    if (!rows[0]) return res.status(404).json({ message: 'Order not found.' })
+
+    const order = rows[0]
+
+    // 2. Derive item name from order_items JSON
+    const items = Array.isArray(order.order_items) ? order.order_items : JSON.parse(order.order_items || '[]')
+    const itemName = items.map(i => i.name || i.itemName || 'Unknown').join(', ') || 'Purse'
+
+    // 3. Log to Google Sheets
+    try {
+      await updateFinancialSheet({
+        orderId: order.id,
+        itemName,
+        costPrice: Number(cost_price),
+        sellingPrice: Number(order.total_amount),
+        courierFee: Number(courier_fee ?? order.shipping_fee ?? 0),
+      })
+    } catch (sheetsError) {
+      console.error('⚠️  Google Sheets logging failed (order still completed):', sheetsError.message)
+    }
+
+    // 4. Update status in DB
+    const { rows: updated } = await pool.query(
+      `UPDATE orders
+         SET status = 'Completed',
+             cost_price = $1,
+             courier_fee = $2
+       WHERE id = $3
+       RETURNING *`,
+      [Number(cost_price), Number(courier_fee ?? order.shipping_fee ?? 0), id]
+    )
+
+    return res.json({ message: 'Order marked as Completed and logged to Sheets.', order: normalizeOrder(updated[0]) })
+  } catch (error) {
+    console.error('completeOrder error:', error)
+    return res.status(500).json({ message: 'Internal server error while completing order.' })
+  }
+}
+
+module.exports = { 
+  adminGetOrders, 
+  adminUpdateOrderStatus, 
+  checkout, 
+  publicGetOrderTracking,
+  confirmOrderWithTrax,
+  getTraxLabel,
+  dispatchOrders,
+  updateOrderManifest,
+  completeOrder,
+}

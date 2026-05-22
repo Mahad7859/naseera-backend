@@ -7,6 +7,7 @@ async function initializeSchema() {
       name TEXT NOT NULL,
       category TEXT NOT NULL,
       price NUMERIC(10, 2) NOT NULL DEFAULT 0,
+      wholesale_price NUMERIC(10, 2) NOT NULL DEFAULT 0,
       description TEXT DEFAULT '',
       image_url TEXT DEFAULT '',
       image_back TEXT DEFAULT '',
@@ -24,6 +25,15 @@ async function initializeSchema() {
   `)
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS manifests (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      trax_sheet_id TEXT UNIQUE NOT NULL,
+      pdf_url TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS orders (
       id SERIAL PRIMARY KEY,
       customer_name TEXT NOT NULL,
@@ -34,6 +44,12 @@ async function initializeSchema() {
       order_items JSONB NOT NULL DEFAULT '[]',
       payment_method TEXT NOT NULL DEFAULT 'cod',
       status TEXT NOT NULL DEFAULT 'pending_confirmation',
+      shipping_fee NUMERIC(10, 2) DEFAULT 0,
+      province TEXT DEFAULT '',
+      city_id INTEGER DEFAULT NULL,
+      tracking_number TEXT,
+      trax_status TEXT DEFAULT 'pending_confirmation',
+      manifest_id UUID REFERENCES manifests(id),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `)
@@ -72,13 +88,20 @@ async function initializeSchema() {
     ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'online',
     ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending',
     ADD COLUMN IF NOT EXISTS shipping_fee NUMERIC(10, 2) DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS province TEXT DEFAULT '';
+    ADD COLUMN IF NOT EXISTS province TEXT DEFAULT '',
+    ADD COLUMN IF NOT EXISTS cost_price NUMERIC(10, 2) DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS courier_fee NUMERIC(10, 2) DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS city_id INTEGER,
+    ADD COLUMN IF NOT EXISTS tracking_number TEXT,
+    ADD COLUMN IF NOT EXISTS trax_status TEXT DEFAULT 'pending_confirmation',
+    ADD COLUMN IF NOT EXISTS manifest_id UUID REFERENCES manifests(id);
   `)
 
   await pool.query(`
     ALTER TABLE products
     ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'handbags',
     ADD COLUMN IF NOT EXISTS price NUMERIC(10, 2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS wholesale_price NUMERIC(10, 2) NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '',
     ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT '',
     ADD COLUMN IF NOT EXISTS image_back TEXT DEFAULT '',

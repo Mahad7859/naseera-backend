@@ -28,7 +28,7 @@ async function adminGetProducts(_req, res) {
 
 async function adminCreateProduct(req, res) {
   const {
-    name, category, price,
+    name, category, price, wholesalePrice = 0,
     description = '', imageUrl = '', imageBack = '', imageSide = '',
     isFeatured = false, isVisible = true, stockQuantity = 10, isDraft = false,
     discountPercentage = 0, length = '', width = '',
@@ -40,11 +40,11 @@ async function adminCreateProduct(req, res) {
 
   const { rows } = await pool.query(
     `INSERT INTO products
-      (name, category, price, description, image_url, image_back, image_side,
+      (name, category, price, wholesale_price, description, image_url, image_back, image_side,
        is_featured, is_visible, stock_quantity, is_draft, discount_percentage, length, width)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
      RETURNING *`,
-    [name, category, Number(price), description, imageUrl, imageBack, imageSide,
+    [name, category, Number(price), Number(wholesalePrice), description, imageUrl, imageBack, imageSide,
      isFeatured, isVisible, Number(stockQuantity), isDraft, Number(discountPercentage), length, width],
   )
 
@@ -53,7 +53,7 @@ async function adminCreateProduct(req, res) {
 
 async function adminUpdateProduct(req, res) {
   const {
-    name, category, price,
+    name, category, price, wholesalePrice = 0,
     description = '', imageUrl = '', imageBack = '', imageSide = '',
     isFeatured = false, isVisible = true, stockQuantity = 10, isDraft = false,
     discountPercentage = 0, length = '', width = '',
@@ -61,13 +61,13 @@ async function adminUpdateProduct(req, res) {
 
   const { rows } = await pool.query(
     `UPDATE products
-     SET name=$1, category=$2, price=$3, description=$4,
-         image_url=$5, image_back=$6, image_side=$7,
-         is_featured=$8, is_visible=$9, stock_quantity=$10,
-         is_draft=$11, discount_percentage=$12, length=$13, width=$14, updated_at=NOW()
-     WHERE id=$15
+     SET name=$1, category=$2, price=$3, wholesale_price=$4, description=$5,
+         image_url=$6, image_back=$7, image_side=$8,
+         is_featured=$9, is_visible=$10, stock_quantity=$11,
+         is_draft=$12, discount_percentage=$13, length=$14, width=$15, updated_at=NOW()
+     WHERE id=$16
      RETURNING *`,
-    [name, category, Number(price), description, imageUrl, imageBack, imageSide,
+    [name, category, Number(price), Number(wholesalePrice), description, imageUrl, imageBack, imageSide,
      isFeatured, isVisible, Number(stockQuantity), isDraft, Number(discountPercentage), length, width, req.params.id],
   )
 
@@ -107,7 +107,7 @@ async function supplierUpdateStock(req, res) {
 }
 
 async function supplierCreateProduct(req, res) {
-  const { name, category, price, description = '', imageUrl = '', imageBack = '', imageSide = '', length = '', width = '' } = req.body
+  const { name, category, price, wholesalePrice = 0, description = '', imageUrl = '', imageBack = '', imageSide = '', length = '', width = '' } = req.body
 
   if (!name || !category || price === undefined) {
     return res.status(400).json({ message: 'Name, category and price are required.' })
@@ -115,10 +115,10 @@ async function supplierCreateProduct(req, res) {
 
   const { rows } = await pool.query(
     `INSERT INTO products
-      (name, category, price, description, image_url, image_back, image_side, is_draft, stock_quantity, length, width)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,TRUE,0,$8,$9)
+      (name, category, price, wholesale_price, description, image_url, image_back, image_side, is_draft, stock_quantity, length, width)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,TRUE,0,$9,$10)
      RETURNING *`,
-    [name, category, Number(price), description, imageUrl, imageBack, imageSide, length, width],
+    [name, category, Number(price), Number(wholesalePrice), description, imageUrl, imageBack, imageSide, length, width],
   )
 
   return res.status(201).json(normalizeProduct(rows[0]))

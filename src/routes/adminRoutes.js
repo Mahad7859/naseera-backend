@@ -8,7 +8,11 @@ const {
   adminGetProducts, adminCreateProduct, adminUpdateProduct,
   adminDeleteProduct, adminGetDrafts,
 } = require('../controllers/productController')
-const { adminGetOrders, adminUpdateOrderStatus } = require('../controllers/orderController')
+const { 
+  adminGetOrders, adminUpdateOrderStatus, 
+  confirmOrderWithTrax, getTraxLabel, dispatchOrders, updateOrderManifest,
+  completeOrder,
+} = require('../controllers/orderController')
 const {
   adminGetCategories, adminCreateCategory,
   adminUpdateCategory, adminDeleteCategory,
@@ -32,8 +36,13 @@ router.delete('/products/:id', requireAdminAuth, adminDeleteProduct)
 router.get('/drafts',          requireAdminAuth, adminGetDrafts)
 
 // Orders
-router.get('/orders',                    requireAnyAuth, adminGetOrders)
-router.patch('/orders/:id/status',       requireAnyAuth, adminUpdateOrderStatus)
+router.get('/orders',                        requireAnyAuth, adminGetOrders)
+router.patch('/orders/:id/status',           requireAnyAuth, adminUpdateOrderStatus)
+router.post('/orders/:id/complete',          requireAdminAuth, completeOrder)
+router.post('/orders/:orderId/confirm-trax', requireAnyAuth, confirmOrderWithTrax)
+router.get('/orders/label/:trackingNumber',  requireAnyAuth, getTraxLabel)
+router.post('/orders/dispatch',              requireAnyAuth, dispatchOrders)
+router.patch('/orders/:orderId/manifest',    requireAnyAuth, updateOrderManifest)
 
 // Categories
 router.get('/categories',        requireAnyAuth, adminGetCategories)

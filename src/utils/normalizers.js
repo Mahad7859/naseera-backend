@@ -2,6 +2,7 @@ function normalizeProduct(row) {
   return {
     ...row,
     price: Number(row.price),
+    wholesalePrice: Number(row.wholesale_price || 0),
     stockQuantity: Number(row.stock_quantity || 0),
     isDraft: row.is_draft,
     imageUrl: row.image_url,
@@ -37,7 +38,12 @@ function normalizeOrder(row) {
     status: row.status,
     createdAt: row.created_at,
     shippingFee: Number(row.shipping_fee || 0),
-    province: row.province || ''
+    province: row.province || '',
+    cityId: row.city_id || null,
+    trackingNumber: row.tracking_number || null,
+    traxStatus: row.trax_status || null,
+    manifestId: row.manifest_id || null,
+    manifestPdfUrl: row.manifest_pdf_url || null,
   }
 }
 

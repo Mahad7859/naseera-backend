@@ -38,3 +38,14 @@ This is the Node.js/Express backend powering the Naseera Collection platform.
 - `npm run dev`: Starts the server with `nodemon` for development.
 - `npm start`: Production startup script.
 - `node src/scripts/check_orders.js`: Utility to manually check and log order counts.
+
+### Admin API / TRAX Endpoints
+- `POST /api/admin/login` — Admin authentication.
+- `GET /api/admin/orders` — Retrieve all orders with normalized TRAX metadata.
+- `PATCH /api/admin/orders/:id/status` — Update order status manually.
+- `POST /api/admin/orders/:orderId/confirm-trax` — Book the order with TRAX and set `trackingNumber`.
+- `GET /api/admin/orders/label/:trackingNumber` — Return a printable TRAX waybill URL.
+- `POST /api/admin/orders/dispatch` — Create a TRAX receiving sheet for selected tracking numbers and mark orders as dispatched.
+- `PATCH /api/admin/orders/:orderId/manifest` — Attach or update the manifest record for a specific order.
+
+> Note: The backend order responses are normalized to expose `trackingNumber`, `traxStatus`, `manifestId`, and `manifestPdfUrl` for frontend admin usage.
