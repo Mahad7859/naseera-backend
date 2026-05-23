@@ -126,10 +126,14 @@ async function confirmOrderWithTrax(req, res) {
     const order = rows[0];
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
+    // Ensure numeric values are safe and fallback correctly
+    const serviceTypeId = parseInt(process.env.TRAX_SERVICE_TYPE_ID) || 1;
+    const shippingModeId = parseInt(process.env.TRAX_SHIPPING_MODE_ID) || 2; // 2 is Road (Standard)
+
     const traxPayload = {
-      service_type_id: Number(process.env.TRAX_SERVICE_TYPE_ID || 1),
-      pickup_city_id: Number(process.env.TRAX_PICKUP_CITY_ID || 144),
-      consignee_city_id: Number(order.city_id || 223),
+      service_type_id: serviceTypeId,
+      pickup_city_id: parseInt(process.env.TRAX_PICKUP_CITY_ID) || 144,
+      consignee_city_id: parseInt(order.city_id) || 223,
       consignee_name: order.customer_name,
       consignee_address: order.customer_address,
       consignee_phone_number_1: order.customer_phone,
@@ -139,10 +143,10 @@ async function confirmOrderWithTrax(req, res) {
       item_quantity: 1,
       weight: 0.5,
       estimated_weight: 0.5,
-      shipping_mode_id: Number(process.env.TRAX_SHIPPING_MODE_ID || 2), // Default to 2 (Road) as 1 (Air) is often invalid for Standard service
+      shipping_mode_id: shippingModeId,
       amount: Math.round(Number(order.total_amount)), // TRAX requires an integer amount
-      payment_mode_id: Number(process.env.TRAX_PAYMENT_MODE_ID || 1),
-      charges_mode_id: Number(process.env.TRAX_CHARGES_MODE_ID || 4),
+      payment_mode_id: parseInt(process.env.TRAX_PAYMENT_MODE_ID) || 1,
+      charges_mode_id: parseInt(process.env.TRAX_CHARGES_MODE_ID) || 4,
       information_display: process.env.TRAX_INFORMATION_DISPLAY === 'false' ? 0 : 1,
       item_insurance: process.env.TRAX_ITEM_INSURANCE === 'true' ? 1 : 0,
       ...(process.env.TRAX_PICKUP_ADDRESS_ID ? { pickup_address_id: Number(process.env.TRAX_PICKUP_ADDRESS_ID) } : {}),
@@ -150,10 +154,7 @@ async function confirmOrderWithTrax(req, res) {
     
     // Log payload for debugging in Railway logs (remove in final production)
     console.log('--- TRAX Booking Attempt ---');
-    console.log('Order ID:', order.id);
-    console.log('City ID:', traxPayload.consignee_city_id);
-    console.log('Shipping Mode:', traxPayload.shipping_mode_id);
-    console.log('Pickup Address ID:', process.env.TRAX_PICKUP_ADDRESS_ID);
+    console.log('Payload:', JSON.stringify(traxPayload, null, 2));
     console.log('---------------------------');
 
     if (!process.env.TRAX_PICKUP_ADDRESS_ID) {
