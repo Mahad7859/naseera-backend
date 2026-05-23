@@ -128,9 +128,9 @@ async function confirmOrderWithTrax(req, res) {
 
     // Defensive parsing: ensure we never send NaN to the carrier
     const serviceTypeId = Number(process.env.TRAX_SERVICE_TYPE_ID) || 1;
-    // Default to 3 (Swift) as per account lock. 
-    // Priority: Env Variable > Hardcoded fallback (3)
-    const shippingModeId = Number(process.env.TRAX_SHIPPING_MODE_ID) || 3;
+    // Default to 2 (Swift) as per latest troubleshooting. 
+    // Priority: Env Variable > Hardcoded fallback (2)
+    const shippingModeId = Number(process.env.TRAX_SHIPPING_MODE_ID) || 2;
     const pickupCityId = Number(process.env.TRAX_PICKUP_CITY_ID) || 144;
     const pickupAddressId = Number(process.env.TRAX_PICKUP_ADDRESS_ID) || 631587;
     const consigneeCityId = Number(order.city_id) || 223;
@@ -140,11 +140,12 @@ async function confirmOrderWithTrax(req, res) {
       pickup_city_id: pickupCityId,
       consignee_city_id: consigneeCityId,
       consignee_name: String(order.customer_name || order.customerName || 'Customer').trim(),
-      consignee_address: order.customer_address,
-      consignee_phone_number_1: order.customer_phone,
+      consignee_address: String(order.customer_address || '').trim(),
+      consignee_phone_number_1: String(order.customer_phone || '').trim(),
       order_id: `NC-${order.id}`,
       item_product_type_id: 24, // 24 = Purses/Apparel category
       item_description: "Handcrafted Purse",
+      item_quantity: 1,
       pieces_quantity: 1,
       weight: 0.5,
       estimated_weight: 0.5,
