@@ -128,7 +128,9 @@ async function confirmOrderWithTrax(req, res) {
 
     // Defensive parsing: ensure we never send NaN to the carrier
     const serviceTypeId = Number(process.env.TRAX_SERVICE_TYPE_ID) || 1;
-    const shippingModeId = Number(process.env.TRAX_SHIPPING_MODE_ID) || 1; // Default to 1 (Road) for Standard service
+    // Default to 2 (Road) for Standard Service (1). 
+    // Most accounts use 2 for Road; adjust TRAX_SHIPPING_MODE_ID in .env if your account uses 1.
+    const shippingModeId = Number(process.env.TRAX_SHIPPING_MODE_ID) || 2; 
     const pickupCityId = Number(process.env.TRAX_PICKUP_CITY_ID) || 144;
     const pickupAddressId = Number(process.env.TRAX_PICKUP_ADDRESS_ID) || 0;
     const consigneeCityId = Number(order.city_id) || 223;
@@ -137,7 +139,7 @@ async function confirmOrderWithTrax(req, res) {
       service_type_id: serviceTypeId,
       pickup_city_id: pickupCityId,
       consignee_city_id: consigneeCityId,
-      consignee_name: order.customer_name || order.customerName || 'Customer',
+      consignee_name: String(order.customer_name || order.customerName || 'Customer').trim(),
       consignee_address: order.customer_address,
       consignee_phone_number_1: order.customer_phone,
       order_id: `NC-${order.id}`,
@@ -147,7 +149,7 @@ async function confirmOrderWithTrax(req, res) {
       weight: 0.5,
       estimated_weight: 0.5,
       shipping_mode_id: shippingModeId,
-      amount: Math.round(Number(order.total_amount)), // TRAX requires an integer amount
+      amount: Math.floor(Number(order.total_amount)), // Ensure integer
       payment_mode_id: Number(process.env.TRAX_PAYMENT_MODE_ID) || 1,
       charges_mode_id: Number(process.env.TRAX_CHARGES_MODE_ID) || 4,
       information_display: process.env.TRAX_INFORMATION_DISPLAY === 'false' ? 0 : 1,
@@ -156,9 +158,11 @@ async function confirmOrderWithTrax(req, res) {
     }
     
     // CRITICAL DEBUGGING: This prints exactly what TRAX sees
-    console.log('--- TRAX OUTGOING PAYLOAD ---');
-    console.log(JSON.stringify(traxPayload)); 
-    console.log('-----------------------------');
+    console.log('--- TRAX OUTGOING PAYLOAD DEBUG ---');
+    console.log('Environment Var (TRAX_SHIPPING_MODE_ID):', process.env.TRAX_SHIPPING_MODE_ID);
+    console.log('Final Mode ID used:', shippingModeId);
+    console.log('Full Payload:', JSON.stringify(traxPayload, null, 2));
+    console.log('-----------------------------------');
 
     if (pickupAddressId === 0) {
       console.error('TRAX Booking Error: missing TRAX_PICKUP_ADDRESS_ID environment variable')
