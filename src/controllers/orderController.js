@@ -128,11 +128,11 @@ async function confirmOrderWithTrax(req, res) {
 
     // Defensive parsing: ensure we never send NaN to the carrier
     const serviceTypeId = Number(process.env.TRAX_SERVICE_TYPE_ID) || 1;
-    // Default to 2 (Road) for Standard Service (1). 
-    // Most accounts use 2 for Road; adjust TRAX_SHIPPING_MODE_ID in .env if your account uses 1.
-    const shippingModeId = Number(process.env.TRAX_SHIPPING_MODE_ID) || 2; 
+    // Default to 3 (Swift) as per account lock. 
+    // Priority: Env Variable > Hardcoded fallback (3)
+    const shippingModeId = Number(process.env.TRAX_SHIPPING_MODE_ID) || 3;
     const pickupCityId = Number(process.env.TRAX_PICKUP_CITY_ID) || 144;
-    const pickupAddressId = Number(process.env.TRAX_PICKUP_ADDRESS_ID) || 0;
+    const pickupAddressId = Number(process.env.TRAX_PICKUP_ADDRESS_ID) || 631587;
     const consigneeCityId = Number(order.city_id) || 223;
 
     const traxPayload = {
@@ -143,9 +143,9 @@ async function confirmOrderWithTrax(req, res) {
       consignee_address: order.customer_address,
       consignee_phone_number_1: order.customer_phone,
       order_id: `NC-${order.id}`,
-      item_product_type_id: 1,
+      item_product_type_id: 24, // 24 = Purses/Apparel category
       item_description: "Handcrafted Purse",
-      item_quantity: 1,
+      pieces_quantity: 1,
       weight: 0.5,
       estimated_weight: 0.5,
       shipping_mode_id: shippingModeId,
