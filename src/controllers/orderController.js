@@ -126,9 +126,9 @@ async function confirmOrderWithTrax(req, res) {
     const order = rows[0];
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    const traxResponse = await axios.post('https://sonic.pk/api/shipment/book', {
-      service_type_id: 1,
-      pickup_city_id: process.env.TRAX_PICKUP_CITY_ID || 144,
+    const traxPayload = {
+      service_type_id: Number(process.env.TRAX_SERVICE_TYPE_ID || 1),
+      pickup_city_id: Number(process.env.TRAX_PICKUP_CITY_ID || 144),
       consignee_city_id: order.city_id || 223,
       consignee_name: order.customer_name,
       consignee_address: order.customer_address,
@@ -139,11 +139,23 @@ async function confirmOrderWithTrax(req, res) {
       item_quantity: 1,
       weight: 0.5,
       estimated_weight: 0.5,
-      shipping_mode_id: 1,
+      shipping_mode_id: Number(process.env.TRAX_SHIPPING_MODE_ID || 1),
       amount: order.total_amount,
-      payment_mode_id: 1,
-      charges_mode_id: 4
-    }, {
+      payment_mode_id: Number(process.env.TRAX_PAYMENT_MODE_ID || 1),
+      charges_mode_id: Number(process.env.TRAX_CHARGES_MODE_ID || 4),
+      information_display: process.env.TRAX_INFORMATION_DISPLAY ?? true,
+      item_insurance: process.env.TRAX_ITEM_INSURANCE ?? false,
+      ...(process.env.TRAX_PICKUP_ADDRESS_ID ? { pickup_address_id: Number(process.env.TRAX_PICKUP_ADDRESS_ID) } : {}),
+    }
+
+    if (!process.env.TRAX_PICKUP_ADDRESS_ID) {
+      console.error('TRAX Booking Error: missing TRAX_PICKUP_ADDRESS_ID environment variable')
+      return res.status(500).json({
+        message: 'TRAX Booking Failed: pickup_address_id not configured. Set TRAX_PICKUP_ADDRESS_ID in the server environment.',
+      })
+    }
+
+    const traxResponse = await axios.post('https://sonic.pk/api/shipment/book', traxPayload, {
       headers: { 'Authorization': process.env.TRAX_API_KEY }
     });
 
@@ -153,6 +165,7 @@ async function confirmOrderWithTrax(req, res) {
     if (!trackingNumber) {
       console.error('TRAX Booking Error: missing tracking number in response', {
         orderId,
+        requestPayload: traxPayload,
         status: traxResponse.status,
         responseData,
       })
