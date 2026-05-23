@@ -147,7 +147,22 @@ async function confirmOrderWithTrax(req, res) {
       headers: { 'Authorization': process.env.TRAX_API_KEY }
     });
 
-    const trackingNumber = traxResponse.data.tracking_number;
+    const responseData = traxResponse.data || {}
+    const trackingNumber = responseData.tracking_number || responseData.data?.tracking_number || responseData.result?.tracking_number || responseData.tracking_no || responseData.trackingNumber
+
+    if (!trackingNumber) {
+      console.error('TRAX Booking Error: missing tracking number in response', {
+        orderId,
+        status: traxResponse.status,
+        responseData,
+      })
+
+      return res.status(502).json({
+        message: 'TRAX Booking Failed: missing tracking number in carrier response.',
+        response: responseData,
+      })
+    }
+
     await pool.query(
       'UPDATE orders SET tracking_number = $1, status = $2, trax_status = $3 WHERE id = $4',
       [trackingNumber, 'confirmed', 'booked', orderId]
@@ -155,7 +170,7 @@ async function confirmOrderWithTrax(req, res) {
 
     return res.json({ success: true, tracking_number: trackingNumber });
   } catch (error) {
-    console.error('TRAX Booking Error:', error.message);
+    console.error('TRAX Booking Error:', error.message, { orderId, error: error.response?.data || error.stack || error })
     return res.status(500).json({ message: 'TRAX Booking Failed' });
   }
 }
