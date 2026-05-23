@@ -128,7 +128,7 @@ async function confirmOrderWithTrax(req, res) {
 
     // Defensive parsing: ensure we never send NaN to the carrier
     const serviceTypeId = Number(process.env.TRAX_SERVICE_TYPE_ID) || 1;
-    const shippingModeId = Number(process.env.TRAX_SHIPPING_MODE_ID) || 2;
+    const shippingModeId = Number(process.env.TRAX_SHIPPING_MODE_ID) || 1; // Default to 1 (Road) for Standard service
     const pickupCityId = Number(process.env.TRAX_PICKUP_CITY_ID) || 144;
     const pickupAddressId = Number(process.env.TRAX_PICKUP_ADDRESS_ID) || 0;
     const consigneeCityId = Number(order.city_id) || 223;
@@ -137,7 +137,7 @@ async function confirmOrderWithTrax(req, res) {
       service_type_id: serviceTypeId,
       pickup_city_id: pickupCityId,
       consignee_city_id: consigneeCityId,
-      consignee_name: order.customer_name,
+      consignee_name: order.customer_name || order.customerName || 'Customer',
       consignee_address: order.customer_address,
       consignee_phone_number_1: order.customer_phone,
       order_id: `NC-${order.id}`,
