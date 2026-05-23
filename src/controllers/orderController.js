@@ -128,9 +128,8 @@ async function confirmOrderWithTrax(req, res) {
 
     // Defensive parsing: ensure we never send NaN to the carrier
     const serviceTypeId = Number(process.env.TRAX_SERVICE_TYPE_ID) || 1;
-    // Default to 2 (Swift) as per latest troubleshooting. 
-    // Priority: Env Variable > Hardcoded fallback (2)
-    const shippingModeId = Number(process.env.TRAX_SHIPPING_MODE_ID) || 2;
+    // Default to 2 (Swift) for the public API. Switch to 1 (Rush) in Railway if 2 fails.
+    const shippingModeId = Number(process.env.TRAX_SHIPPING_MODE_ID || 2);
     const pickupCityId = Number(process.env.TRAX_PICKUP_CITY_ID) || 144;
     const pickupAddressId = Number(process.env.TRAX_PICKUP_ADDRESS_ID) || 631587;
     const consigneeCityId = Number(order.city_id) || 223;
@@ -143,10 +142,10 @@ async function confirmOrderWithTrax(req, res) {
       consignee_address: String(order.customer_address || '').trim(),
       consignee_phone_number_1: String(order.customer_phone || '').trim(),
       order_id: `NC-${order.id}`,
-      item_product_type_id: 24, // 24 = Purses/Apparel category
+      item_product_type_id: Number(process.env.TRAX_PRODUCT_TYPE_ID || 24), // 24 = Purses/Apparel
       item_description: "Handcrafted Purse",
-      item_quantity: 1,
-      pieces_quantity: 1,
+      item_quantity: 1,      // Mandatory for Service Type 1
+      pieces_quantity: 1,    // Mandatory for physical box count
       weight: 0.5,
       estimated_weight: 0.5,
       shipping_mode_id: shippingModeId,
