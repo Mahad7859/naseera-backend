@@ -231,7 +231,13 @@ async function getTraxLabel(req, res) {
     res.setHeader('Content-Disposition', `inline; filename=waybill-${trackingNumber}.pdf`);
     return res.send(response.data);
   } catch (error) {
-    console.error("Waybill Fetch Error:", error.message);
+    console.error("Waybill Fetch Error - Status:", error.response?.status);
+    if (error.response && error.response.data) {
+      const errorString = Buffer.from(error.response.data).toString('utf8');
+      console.error("TRAX Exact Error Details:", errorString);
+    } else {
+      console.error("Axios Error Message:", error.message);
+    }
     return res.status(500).json({ message: "Could not fetch waybill from TRAX" });
   }
 }
@@ -272,7 +278,13 @@ async function getTraxManifest(req, res) {
     res.setHeader('Content-Disposition', `inline; filename=manifest-${sheetId}.pdf`);
     return res.send(response.data);
   } catch (error) {
-    console.error("Manifest Fetch Error:", error.message);
+    console.error("Manifest Fetch Error - Status:", error.response?.status);
+    if (error.response && error.response.data) {
+      const errorString = Buffer.from(error.response.data).toString('utf8');
+      console.error("TRAX Exact Error Details:", errorString);
+    } else {
+      console.error("Axios Error Message:", error.message);
+    }
     return res.status(500).json({ message: "Could not fetch manifest from TRAX" });
   }
 }
