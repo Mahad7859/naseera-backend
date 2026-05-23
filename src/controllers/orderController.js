@@ -126,14 +126,17 @@ async function confirmOrderWithTrax(req, res) {
     const order = rows[0];
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    // Ensure numeric values are safe and fallback correctly
-    const serviceTypeId = parseInt(process.env.TRAX_SERVICE_TYPE_ID) || 1;
-    const shippingModeId = parseInt(process.env.TRAX_SHIPPING_MODE_ID) || 2; // 2 is Road (Standard)
+    // Defensive parsing: ensure we never send NaN to the carrier
+    const serviceTypeId = Number(process.env.TRAX_SERVICE_TYPE_ID) || 1;
+    const shippingModeId = Number(process.env.TRAX_SHIPPING_MODE_ID) || 2;
+    const pickupCityId = Number(process.env.TRAX_PICKUP_CITY_ID) || 144;
+    const pickupAddressId = Number(process.env.TRAX_PICKUP_ADDRESS_ID) || 0;
+    const consigneeCityId = Number(order.city_id) || 223;
 
     const traxPayload = {
       service_type_id: serviceTypeId,
-      pickup_city_id: parseInt(process.env.TRAX_PICKUP_CITY_ID) || 144,
-      consignee_city_id: parseInt(order.city_id) || 223,
+      pickup_city_id: pickupCityId,
+      consignee_city_id: consigneeCityId,
       consignee_name: order.customer_name,
       consignee_address: order.customer_address,
       consignee_phone_number_1: order.customer_phone,
@@ -145,19 +148,19 @@ async function confirmOrderWithTrax(req, res) {
       estimated_weight: 0.5,
       shipping_mode_id: shippingModeId,
       amount: Math.round(Number(order.total_amount)), // TRAX requires an integer amount
-      payment_mode_id: parseInt(process.env.TRAX_PAYMENT_MODE_ID) || 1,
-      charges_mode_id: parseInt(process.env.TRAX_CHARGES_MODE_ID) || 4,
+      payment_mode_id: Number(process.env.TRAX_PAYMENT_MODE_ID) || 1,
+      charges_mode_id: Number(process.env.TRAX_CHARGES_MODE_ID) || 4,
       information_display: process.env.TRAX_INFORMATION_DISPLAY === 'false' ? 0 : 1,
       item_insurance: process.env.TRAX_ITEM_INSURANCE === 'true' ? 1 : 0,
-      ...(process.env.TRAX_PICKUP_ADDRESS_ID ? { pickup_address_id: Number(process.env.TRAX_PICKUP_ADDRESS_ID) } : {}),
+      pickup_address_id: pickupAddressId,
     }
     
-    // Log payload for debugging in Railway logs (remove in final production)
-    console.log('--- TRAX Booking Attempt ---');
-    console.log('Payload:', JSON.stringify(traxPayload, null, 2));
-    console.log('---------------------------');
+    // CRITICAL DEBUGGING: This prints exactly what TRAX sees
+    console.log('--- TRAX OUTGOING PAYLOAD ---');
+    console.log(JSON.stringify(traxPayload)); 
+    console.log('-----------------------------');
 
-    if (!process.env.TRAX_PICKUP_ADDRESS_ID) {
+    if (pickupAddressId === 0) {
       console.error('TRAX Booking Error: missing TRAX_PICKUP_ADDRESS_ID environment variable')
       return res.status(500).json({
         message: 'TRAX Booking Failed: pickup_address_id not configured. Set TRAX_PICKUP_ADDRESS_ID in the server environment.',
