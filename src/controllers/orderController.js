@@ -224,21 +224,24 @@ async function confirmOrderWithTrax(req, res) {
 async function getTraxLabel(req, res) {
   const { trackingNumber } = req.params;
   try {
-    const response = await axios.get(`https://sonic.pk/api/shipment/print_waybill?tracking_number=${trackingNumber}&api_key=${process.env.TRAX_API_KEY}`, {
-      responseType: 'arraybuffer'
-    });
+    const url = `https://sonic.pk/api/shipment/print_waybill?tracking_number=${trackingNumber}&api_key=${process.env.TRAX_API_KEY}`;
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+
+    // Log the content-type to see if TRAX is actually sending a PDF
+    console.log("TRAX Content-Type:", response.headers['content-type']);
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename=waybill-${trackingNumber}.pdf`);
-    return res.send(response.data);
+    return res.send(Buffer.from(response.data));
   } catch (error) {
-    console.error("Waybill Fetch Error - Status:", error.response?.status);
-    if (error.response && error.response.data) {
-      const errorString = Buffer.from(error.response.data).toString('utf8');
-      console.error("TRAX Exact Error Details:", errorString);
+    if (error.response?.data) {
+      // This is the key: Convert the error buffer to a string and log it
+      const rawError = Buffer.from(error.response.data).toString('utf8');
+      console.error("CRITICAL ERROR FROM TRAX:", rawError);
     } else {
       console.error("Axios Error Message:", error.message);
     }
-    return res.status(500).json({ message: "Could not fetch waybill from TRAX" });
+    return res.status(500).json({ message: "Check Railway Logs for TRAX error" });
   }
 }
 
@@ -271,21 +274,24 @@ async function dispatchOrders(req, res) {
 async function getTraxManifest(req, res) {
   const { sheetId } = req.params;
   try {
-    const response = await axios.get(`https://sonic.pk/api/receiving_sheet/print?sheet_id=${sheetId}&api_key=${process.env.TRAX_API_KEY}`, {
-      responseType: 'arraybuffer'
-    });
+    const url = `https://sonic.pk/api/receiving_sheet/print?sheet_id=${sheetId}&api_key=${process.env.TRAX_API_KEY}`;
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+
+    // Log the content-type to see if TRAX is actually sending a PDF
+    console.log("TRAX Content-Type:", response.headers['content-type']);
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename=manifest-${sheetId}.pdf`);
-    return res.send(response.data);
+    return res.send(Buffer.from(response.data));
   } catch (error) {
-    console.error("Manifest Fetch Error - Status:", error.response?.status);
-    if (error.response && error.response.data) {
-      const errorString = Buffer.from(error.response.data).toString('utf8');
-      console.error("TRAX Exact Error Details:", errorString);
+    if (error.response?.data) {
+      // This is the key: Convert the error buffer to a string and log it
+      const rawError = Buffer.from(error.response.data).toString('utf8');
+      console.error("CRITICAL ERROR FROM TRAX:", rawError);
     } else {
       console.error("Axios Error Message:", error.message);
     }
-    return res.status(500).json({ message: "Could not fetch manifest from TRAX" });
+    return res.status(500).json({ message: "Check Railway Logs for TRAX error" });
   }
 }
 
