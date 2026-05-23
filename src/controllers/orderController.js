@@ -225,22 +225,12 @@ async function getTraxLabel(req, res) {
   const { trackingNumber } = req.params;
   try {
     const url = `https://sonic.pk/api/shipment/print_waybill?tracking_number=${trackingNumber}&api_key=${process.env.TRAX_API_KEY}`;
-    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    const response = await axios.get(url);
 
-    // Log the content-type to see if TRAX is actually sending a PDF
-    console.log("TRAX Content-Type:", response.headers['content-type']);
-
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename=waybill-${trackingNumber}.pdf`);
-    return res.send(Buffer.from(response.data));
+    res.setHeader('Content-Type', 'text/html');
+    return res.send(response.data);
   } catch (error) {
-    if (error.response?.data) {
-      // This is the key: Convert the error buffer to a string and log it
-      const rawError = Buffer.from(error.response.data).toString('utf8');
-      console.error("CRITICAL ERROR FROM TRAX:", rawError);
-    } else {
-      console.error("Axios Error Message:", error.message);
-    }
+    console.error("CRITICAL ERROR FROM TRAX:", error.response?.data || error.message);
     return res.status(500).json({ message: "Check Railway Logs for TRAX error" });
   }
 }
@@ -275,22 +265,12 @@ async function getTraxManifest(req, res) {
   const { sheetId } = req.params;
   try {
     const url = `https://sonic.pk/api/receiving_sheet/print?sheet_id=${sheetId}&api_key=${process.env.TRAX_API_KEY}`;
-    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    const response = await axios.get(url);
 
-    // Log the content-type to see if TRAX is actually sending a PDF
-    console.log("TRAX Content-Type:", response.headers['content-type']);
-
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename=manifest-${sheetId}.pdf`);
-    return res.send(Buffer.from(response.data));
+    res.setHeader('Content-Type', 'text/html');
+    return res.send(response.data);
   } catch (error) {
-    if (error.response?.data) {
-      // This is the key: Convert the error buffer to a string and log it
-      const rawError = Buffer.from(error.response.data).toString('utf8');
-      console.error("CRITICAL ERROR FROM TRAX:", rawError);
-    } else {
-      console.error("Axios Error Message:", error.message);
-    }
+    console.error("CRITICAL ERROR FROM TRAX:", error.response?.data || error.message);
     return res.status(500).json({ message: "Check Railway Logs for TRAX error" });
   }
 }
