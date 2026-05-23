@@ -10,8 +10,8 @@ const {
 } = require('../controllers/productController')
 const { 
   adminGetOrders, adminUpdateOrderStatus, 
-  confirmOrderWithTrax, getTraxLabel, getTraxManifest,
-  dispatchOrders, updateOrderManifest,
+  confirmOrderWithTrax, getTraxLabel, printManifest,
+  deployManifest, groupOrders, ungroupOrders, updateOrderManifest,
   completeOrder, cancelOrder,
 } = require('../controllers/orderController')
 const {
@@ -43,8 +43,10 @@ router.post('/orders/:id/complete',          requireAdminAuth, completeOrder)
 router.post('/orders/:orderId/cancel',       requireAnyAuth, cancelOrder)
 router.post('/orders/:orderId/confirm-trax', requireAnyAuth, confirmOrderWithTrax)
 router.get('/orders/label/:trackingNumber',  requireAnyAuth, getTraxLabel)
-router.get('/orders/manifest/:sheetId',      requireAnyAuth, getTraxManifest)
-router.post('/orders/dispatch',              requireAnyAuth, dispatchOrders)
+router.get('/orders/manifest/:sheetId',      requireAnyAuth, printManifest)
+router.post('/orders/group',                 requireAnyAuth, groupOrders)
+router.post('/orders/group/ungroup',         requireAnyAuth, ungroupOrders)
+router.post('/orders/manifest/deploy',       requireAnyAuth, deployManifest)
 router.patch('/orders/:orderId/manifest',    requireAnyAuth, updateOrderManifest)
 
 // Categories

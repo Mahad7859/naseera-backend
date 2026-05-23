@@ -4,14 +4,11 @@ const { sendOrderNotificationEmail } = require('../utils/email')
 const { updateFinancialSheet } = require('../utils/sheetsApi')
 const axios = require('axios')
 
-const VALID_STATUSES = ['pending_confirmation', 'informed', 'packed', 'shipped', 'delivered', 'cancelled']
+const VALID_STATUSES = ['pending_confirmation', 'informed', 'packed', 'shipped', 'dispatched', 'delivered', 'cancelled']
 
 async function adminGetOrders(_req, res) {
   const { rows } = await pool.query(
-    `SELECT orders.*, m.trax_sheet_id
-     FROM orders
-     LEFT JOIN manifests m ON orders.manifest_id = m.id
-     ORDER BY orders.created_at DESC`
+    `SELECT * FROM orders ORDER BY created_at DESC`
   )
   return res.json(rows.map(normalizeOrder))
 }
@@ -126,9 +123,15 @@ async function confirmOrderWithTrax(req, res) {
     const order = rows[0];
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    // Defensive parsing: ensure we never send NaN to the carrier
-    const serviceTypeId = Number(process.env.TRAX_SERVICE_TYPE_ID) || 1;
-    const shippingModeId = Number(process.env.TRAX_SHIPPING_MODE_ID) || 3;
+    if (!process.env.TRAX_API_KEY) {
+      return res.status(500).json({ 
+        message: 'TRAX_API_KEY is missing in the local environment (.env file).' 
+      });
+    }
+
+    // FORCING IDs FOR SWIFT DELIVERY - DO NOT CHANGE
+    const serviceTypeId = 1;
+    const shippingModeId = 3; 
     const pickupCityId = Number(process.env.TRAX_PICKUP_CITY_ID) || 144;
     const pickupAddressId = Number(process.env.TRAX_PICKUP_ADDRESS_ID) || 631587;
     const consigneeCityId = Number(order.city_id) || 223;
@@ -140,7 +143,7 @@ async function confirmOrderWithTrax(req, res) {
       consignee_name: String(order.customer_name || order.customerName || 'Customer').trim(),
       consignee_address: String(order.customer_address || '').trim(),
       consignee_phone_number_1: String(order.customer_phone || '').trim(),
-      order_id: `NC-${order.id}`,
+      order_id: `${process.env.TRAX_ORDER_PREFIX || 'NC'}-${order.id}`,
       item_product_type_id: Number(process.env.TRAX_PRODUCT_TYPE_ID || 24), // 24 = Purses/Apparel
       item_description: "Handcrafted Purse",
       item_quantity: 1,      // Mandatory for Service Type 1
@@ -193,7 +196,7 @@ async function confirmOrderWithTrax(req, res) {
       })
 
       return res.status(502).json({
-        message: 'TRAX Booking Failed: missing tracking number in carrier response.',
+        message: `TRAX Rejected: ${responseData.message || errorDetails}`,
         response: responseData,
       })
     }
@@ -244,36 +247,90 @@ async function getTraxLabel(req, res) {
   }
 }
 
-async function dispatchOrders(req, res) {
-  const { trackingNumbers } = req.body;
+async function groupOrders(req, res) {
+  const { orderIds } = req.body;
+  if (!orderIds || !orderIds.length) {
+    return res.status(400).json({ message: 'No orders selected for grouping' });
+  }
+
+  const localGroupId = `GRP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
   try {
-    const sheetRes = await axios.post('https://sonic.pk/api/receiving_sheet/create', 
+    await pool.query(
+      'UPDATE orders SET local_group_id = $1 WHERE id = ANY($2)',
+      [localGroupId, orderIds]
+    );
+    return res.json({ success: true, localGroupId });
+  } catch (error) {
+    console.error('Grouping Error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to group orders' });
+  }
+}
+
+async function ungroupOrders(req, res) {
+  const { groupId } = req.body;
+  try {
+    // Safety check: Only ungroup if they haven't been deployed to TRAX yet
+    await pool.query(
+      'UPDATE orders SET local_group_id = NULL WHERE local_group_id = $1 AND trax_sheet_id IS NULL',
+      [groupId]
+    );
+    return res.json({ success: true, message: 'Group dissolved successfully' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Failed to ungroup orders' });
+  }
+}
+
+async function deployManifest(req, res) {
+  const { localGroupId } = req.body;
+  try {
+    // 1. Fetch tracking numbers and IDs associated with this local group
+    const { rows } = await pool.query(
+      'SELECT id, tracking_number FROM orders WHERE local_group_id = $1',
+      [localGroupId]
+    );
+
+    if (rows.length === 0) return res.status(404).json({ message: 'No orders found in this group' });
+
+    const trackingNumbers = rows.map(r => r.tracking_number).filter(tn => !!tn);
+    const orderIds = rows.map(r => r.id);
+
+    if (trackingNumbers.length === 0) {
+      return res.status(400).json({ message: 'No tracking numbers found in this group. Confirm orders first.' });
+    }
+
+    // 2. Send POST to TRAX to create the manifest and deploy rider
+    const traxResponse = await axios.post('https://sonic.pk/api/receiving_sheet/create', 
       { tracking_numbers: trackingNumbers },
       { headers: { 'Authorization': process.env.TRAX_API_KEY } }
     );
 
-    const sheetId = sheetRes.data.sheet_id;
+    if (traxResponse.data.status !== 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "TRAX rejected manifest", 
+        details: traxResponse.data 
+      });
+    }
 
-    const manifestResult = await pool.query(
-      'INSERT INTO manifests (trax_sheet_id, pdf_url) VALUES ($1, $2) RETURNING id, trax_sheet_id',
-      [sheetId, `https://sonic.pk/api/receiving_sheet/print?sheet_id=${sheetId}`]
-    );
+    const sheetId = traxResponse.data.receiving_sheet_id;
 
     await pool.query(
-      'UPDATE orders SET status = $1, trax_status = $2, manifest_id = $3 WHERE tracking_number = ANY($4)',
-      ['shipped', 'dispatched', manifestResult.rows[0].id, trackingNumbers]
+      'UPDATE orders SET trax_sheet_id = $1, status = $2 WHERE id = ANY($3)', 
+      [sheetId, 'dispatched', orderIds]
     );
 
-    return res.json({ success: true, sheetId: manifestResult.rows[0].trax_sheet_id });
+    return res.json({ success: true, sheetId: sheetId, message: 'Manifest generated and Rider deployed!' });
   } catch (error) {
-    return res.status(500).json({ message: 'Dispatch Failed' });
+    console.error("Manifest Creation Error:", error.response?.data || error.message);
+    return res.status(500).json({ success: false, message: 'Failed to create manifest' });
   }
 }
 
-async function getTraxManifest(req, res) {
+async function printManifest(req, res) {
   const { sheetId } = req.params;
   try {
-    const url = `https://sonic.pk/api/receiving_sheet/print?sheet_id=${sheetId}&type=1`;
+    const url = `https://sonic.pk/api/receiving_sheet/view?receiving_sheet_id=${sheetId}&type=1`;
     const response = await axios.get(url, {
       headers: { 'Authorization': process.env.TRAX_API_KEY },
       responseType: 'arraybuffer'
@@ -289,7 +346,7 @@ async function getTraxManifest(req, res) {
     } else {
       console.error("Axios Error:", error.message);
     }
-    return res.status(500).json({ message: "Could not fetch PDF from TRAX" });
+    return res.status(500).json({ message: "Could not fetch Manifest PDF" });
   }
 }
 
@@ -395,8 +452,10 @@ module.exports = {
   publicGetOrderTracking,
   confirmOrderWithTrax,
   getTraxLabel,
-  getTraxManifest,
-  dispatchOrders,
+  printManifest,
+  groupOrders,
+  ungroupOrders,
+  deployManifest,
   updateOrderManifest,
   completeOrder,
   cancelOrder,

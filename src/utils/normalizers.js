@@ -42,6 +42,8 @@ function normalizeOrder(row) {
     cityId: row.city_id || null,
     trackingNumber: row.tracking_number || null,
     traxStatus: row.trax_status || null,
+    localGroupId: row.local_group_id || null,
+    traxSheetId: row.trax_sheet_id || null,
     manifestId: row.manifest_id || null,
     manifestPdfUrl: row.trax_sheet_id ? `/admin/orders/manifest/${row.trax_sheet_id}` : null,
   }
