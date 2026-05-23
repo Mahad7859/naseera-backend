@@ -128,8 +128,7 @@ async function confirmOrderWithTrax(req, res) {
 
     // Defensive parsing: ensure we never send NaN to the carrier
     const serviceTypeId = Number(process.env.TRAX_SERVICE_TYPE_ID) || 1;
-    // Default to 2 (Swift) for the public API. Switch to 1 (Rush) in Railway if 2 fails.
-    const shippingModeId = Number(process.env.TRAX_SHIPPING_MODE_ID || 2);
+    const shippingModeId = Number(process.env.TRAX_SHIPPING_MODE_ID) || 3;
     const pickupCityId = Number(process.env.TRAX_PICKUP_CITY_ID) || 144;
     const pickupAddressId = Number(process.env.TRAX_PICKUP_ADDRESS_ID) || 631587;
     const consigneeCityId = Number(order.city_id) || 223;
@@ -179,11 +178,18 @@ async function confirmOrderWithTrax(req, res) {
     const trackingNumber = responseData.tracking_number || responseData.data?.tracking_number || responseData.result?.tracking_number || responseData.tracking_no || responseData.trackingNumber
 
     if (!trackingNumber) {
-      console.error('TRAX Booking Error: missing tracking number in response', {
+      const errorDetails = responseData.errors
+        ? Object.entries(responseData.errors)
+            .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+            .join(' | ')
+        : 'No specific error details provided';
+
+      console.error('TRAX Booking Error: Carrier rejected the shipment request', {
         orderId,
-        requestPayload: traxPayload,
         status: traxResponse.status,
-        responseData,
+        apiMessage: responseData.message,
+        errorDetails,
+        rawResponse: responseData,
       })
 
       return res.status(502).json({
@@ -199,14 +205,25 @@ async function confirmOrderWithTrax(req, res) {
 
     return res.json({ success: true, tracking_number: trackingNumber });
   } catch (error) {
-    console.error('TRAX Booking Error:', error.message, { orderId, error: error.response?.data || error.stack || error })
+    const errorData = error.response?.data || {};
+    const errorDetails = errorData.errors
+      ? Object.entries(errorData.errors)
+          .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+          .join(' | ')
+      : 'No detailed errors';
+
+    console.error('TRAX Booking Error:', error.message, { 
+      orderId, 
+      errorDetails, 
+      error: errorData || error.stack || error 
+    })
     return res.status(500).json({ message: 'TRAX Booking Failed' });
   }
 }
 
 async function getTraxLabel(req, res) {
   const { trackingNumber } = req.params;
-  const labelUrl = `https://sonic.pk/api/shipment/print_waybill?tracking_number=${trackingNumber}`;
+  const labelUrl = `https://sonic.pk/api/shipment/print_waybill?tracking_number=${trackingNumber}&api_key=${process.env.TRAX_API_KEY}`;
   return res.json({ labelUrl });
 }
 
@@ -219,7 +236,7 @@ async function dispatchOrders(req, res) {
     );
 
     const sheetId = sheetRes.data.sheet_id;
-    const manifestUrl = `https://sonic.pk/api/receiving_sheet/print?sheet_id=${sheetId}`;
+    const manifestUrl = `https://sonic.pk/api/receiving_sheet/print?sheet_id=${sheetId}&api_key=${process.env.TRAX_API_KEY}`;
 
     const manifestResult = await pool.query(
       'INSERT INTO manifests (trax_sheet_id, pdf_url) VALUES ($1, $2) RETURNING id',
