@@ -224,8 +224,7 @@ async function confirmOrderWithTrax(req, res) {
 async function getTraxLabel(req, res) {
   const { trackingNumber } = req.params;
   try {
-    const response = await axios.get(`https://sonic.pk/api/shipment/print_waybill?tracking_number=${trackingNumber}`, {
-      headers: { 'Authorization': process.env.TRAX_API_KEY },
+    const response = await axios.get(`https://sonic.pk/api/shipment/print_waybill?tracking_number=${trackingNumber}&api_key=${process.env.TRAX_API_KEY}`, {
       responseType: 'arraybuffer'
     });
     res.setHeader('Content-Type', 'application/pdf');
@@ -266,8 +265,7 @@ async function dispatchOrders(req, res) {
 async function getTraxManifest(req, res) {
   const { sheetId } = req.params;
   try {
-    const response = await axios.get(`https://sonic.pk/api/receiving_sheet/print?sheet_id=${sheetId}`, {
-      headers: { 'Authorization': process.env.TRAX_API_KEY },
+    const response = await axios.get(`https://sonic.pk/api/receiving_sheet/print?sheet_id=${sheetId}&api_key=${process.env.TRAX_API_KEY}`, {
       responseType: 'arraybuffer'
     });
     res.setHeader('Content-Type', 'application/pdf');
