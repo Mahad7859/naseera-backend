@@ -224,14 +224,23 @@ async function confirmOrderWithTrax(req, res) {
 async function getTraxLabel(req, res) {
   const { trackingNumber } = req.params;
   try {
-    const url = `https://sonic.pk/api/shipment/print_waybill?tracking_number=${trackingNumber}&api_key=${process.env.TRAX_API_KEY}`;
-    const response = await axios.get(url);
+    const url = `https://sonic.pk/api/shipment/air_waybill?tracking_number=${trackingNumber}&type=1`;
+    const response = await axios.get(url, {
+      headers: { 'Authorization': process.env.TRAX_API_KEY },
+      responseType: 'arraybuffer'
+    });
 
-    res.setHeader('Content-Type', 'text/html');
-    return res.send(response.data);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename=waybill-${trackingNumber}.pdf`);
+    return res.send(Buffer.from(response.data));
   } catch (error) {
-    console.error("CRITICAL ERROR FROM TRAX:", error.response?.data || error.message);
-    return res.status(500).json({ message: "Check Railway Logs for TRAX error" });
+    if (error.response?.data) {
+      const rawError = Buffer.from(error.response.data).toString('utf8');
+      console.error("TRAX API ERROR:", rawError);
+    } else {
+      console.error("Axios Error:", error.message);
+    }
+    return res.status(500).json({ message: "Could not fetch PDF from TRAX" });
   }
 }
 
@@ -264,14 +273,23 @@ async function dispatchOrders(req, res) {
 async function getTraxManifest(req, res) {
   const { sheetId } = req.params;
   try {
-    const url = `https://sonic.pk/api/receiving_sheet/print?sheet_id=${sheetId}&api_key=${process.env.TRAX_API_KEY}`;
-    const response = await axios.get(url);
+    const url = `https://sonic.pk/api/receiving_sheet/print?sheet_id=${sheetId}&type=1`;
+    const response = await axios.get(url, {
+      headers: { 'Authorization': process.env.TRAX_API_KEY },
+      responseType: 'arraybuffer'
+    });
 
-    res.setHeader('Content-Type', 'text/html');
-    return res.send(response.data);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename=manifest-${sheetId}.pdf`);
+    return res.send(Buffer.from(response.data));
   } catch (error) {
-    console.error("CRITICAL ERROR FROM TRAX:", error.response?.data || error.message);
-    return res.status(500).json({ message: "Check Railway Logs for TRAX error" });
+    if (error.response?.data) {
+      const rawError = Buffer.from(error.response.data).toString('utf8');
+      console.error("TRAX API ERROR:", rawError);
+    } else {
+      console.error("Axios Error:", error.message);
+    }
+    return res.status(500).json({ message: "Could not fetch PDF from TRAX" });
   }
 }
 
