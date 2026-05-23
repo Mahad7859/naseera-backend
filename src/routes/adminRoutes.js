@@ -10,7 +10,8 @@ const {
 } = require('../controllers/productController')
 const { 
   adminGetOrders, adminUpdateOrderStatus, 
-  confirmOrderWithTrax, getTraxLabel, dispatchOrders, updateOrderManifest,
+  confirmOrderWithTrax, getTraxLabel, getTraxManifest,
+  dispatchOrders, updateOrderManifest,
   completeOrder,
 } = require('../controllers/orderController')
 const {
@@ -41,6 +42,7 @@ router.patch('/orders/:id/status',           requireAnyAuth, adminUpdateOrderSta
 router.post('/orders/:id/complete',          requireAdminAuth, completeOrder)
 router.post('/orders/:orderId/confirm-trax', requireAnyAuth, confirmOrderWithTrax)
 router.get('/orders/label/:trackingNumber',  requireAnyAuth, getTraxLabel)
+router.get('/orders/manifest/:sheetId',      requireAnyAuth, getTraxManifest)
 router.post('/orders/dispatch',              requireAnyAuth, dispatchOrders)
 router.patch('/orders/:orderId/manifest',    requireAnyAuth, updateOrderManifest)
 

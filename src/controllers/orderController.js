@@ -8,7 +8,7 @@ const VALID_STATUSES = ['pending_confirmation', 'informed', 'packed', 'shipped',
 
 async function adminGetOrders(_req, res) {
   const { rows } = await pool.query(
-    `SELECT orders.*, m.pdf_url AS manifest_pdf_url
+    `SELECT orders.*, m.trax_sheet_id
      FROM orders
      LEFT JOIN manifests m ON orders.manifest_id = m.id
      ORDER BY orders.created_at DESC`
@@ -223,8 +223,18 @@ async function confirmOrderWithTrax(req, res) {
 
 async function getTraxLabel(req, res) {
   const { trackingNumber } = req.params;
-  const labelUrl = `https://sonic.pk/api/shipment/print_waybill?tracking_number=${trackingNumber}&api_key=${process.env.TRAX_API_KEY}`;
-  return res.json({ labelUrl });
+  try {
+    const response = await axios.get(`https://sonic.pk/api/shipment/print_waybill?tracking_number=${trackingNumber}`, {
+      headers: { 'Authorization': process.env.TRAX_API_KEY },
+      responseType: 'arraybuffer'
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename=waybill-${trackingNumber}.pdf`);
+    return res.send(response.data);
+  } catch (error) {
+    console.error("Waybill Fetch Error:", error.message);
+    return res.status(500).json({ message: "Could not fetch waybill from TRAX" });
+  }
 }
 
 async function dispatchOrders(req, res) {
@@ -236,11 +246,10 @@ async function dispatchOrders(req, res) {
     );
 
     const sheetId = sheetRes.data.sheet_id;
-    const manifestUrl = `https://sonic.pk/api/receiving_sheet/print?sheet_id=${sheetId}&api_key=${process.env.TRAX_API_KEY}`;
 
     const manifestResult = await pool.query(
-      'INSERT INTO manifests (trax_sheet_id, pdf_url) VALUES ($1, $2) RETURNING id',
-      [sheetId, manifestUrl]
+      'INSERT INTO manifests (trax_sheet_id, pdf_url) VALUES ($1, $2) RETURNING id, trax_sheet_id',
+      [sheetId, `https://sonic.pk/api/receiving_sheet/print?sheet_id=${sheetId}`]
     );
 
     await pool.query(
@@ -248,9 +257,25 @@ async function dispatchOrders(req, res) {
       ['shipped', 'dispatched', manifestResult.rows[0].id, trackingNumbers]
     );
 
-    return res.json({ success: true, manifestUrl });
+    return res.json({ success: true, sheetId: manifestResult.rows[0].trax_sheet_id });
   } catch (error) {
     return res.status(500).json({ message: 'Dispatch Failed' });
+  }
+}
+
+async function getTraxManifest(req, res) {
+  const { sheetId } = req.params;
+  try {
+    const response = await axios.get(`https://sonic.pk/api/receiving_sheet/print?sheet_id=${sheetId}`, {
+      headers: { 'Authorization': process.env.TRAX_API_KEY },
+      responseType: 'arraybuffer'
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename=manifest-${sheetId}.pdf`);
+    return res.send(response.data);
+  } catch (error) {
+    console.error("Manifest Fetch Error:", error.message);
+    return res.status(500).json({ message: "Could not fetch manifest from TRAX" });
   }
 }
 
@@ -323,6 +348,7 @@ module.exports = {
   publicGetOrderTracking,
   confirmOrderWithTrax,
   getTraxLabel,
+  getTraxManifest,
   dispatchOrders,
   updateOrderManifest,
   completeOrder,

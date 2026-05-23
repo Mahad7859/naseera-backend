@@ -43,7 +43,7 @@ function normalizeOrder(row) {
     trackingNumber: row.tracking_number || null,
     traxStatus: row.trax_status || null,
     manifestId: row.manifest_id || null,
-    manifestPdfUrl: row.manifest_pdf_url || null,
+    manifestPdfUrl: row.trax_sheet_id ? `/admin/orders/manifest/${row.trax_sheet_id}` : null,
   }
 }
 
