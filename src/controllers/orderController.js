@@ -300,6 +300,39 @@ async function updateOrderManifest(req, res) {
   return res.json({ success: true });
 }
 
+async function cancelOrder(req, res) {
+  const { orderId } = req.params;
+  try {
+    // 1. Fetch current order to get the tracking number
+    const orderResult = await pool.query('SELECT tracking_number FROM orders WHERE id = $1', [orderId]);
+    
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    const trackingNumber = orderResult.rows[0].tracking_number;
+
+    // 2. If it has a TRAX tracking number, cancel it on their server
+    if (trackingNumber) {
+      const traxResponse = await axios.post('https://sonic.pk/api/shipment/cancel', 
+        { tracking_number: trackingNumber },
+        { headers: { 'Authorization': process.env.TRAX_API_KEY } }
+      );
+      
+      if (traxResponse.data.status !== 0) {
+        console.warn("TRAX Cancellation Note:", traxResponse.data.message);
+      }
+    }
+
+    // 3. Update Neon Database
+    await pool.query('UPDATE orders SET status = $1 WHERE id = $2', ['cancelled', orderId]);
+    return res.json({ success: true, message: 'Order cancelled successfully' });
+  } catch (error) {
+    console.error("Cancellation Error:", error.response?.data || error.message);
+    return res.status(500).json({ success: false, message: 'Failed to cancel order' });
+  }
+}
+
 /**
  * POST /api/admin/orders/:id/complete
  * Logs the order to Google Sheets and marks it as 'Completed' in the DB.
@@ -366,4 +399,5 @@ module.exports = {
   dispatchOrders,
   updateOrderManifest,
   completeOrder,
+  cancelOrder,
 }

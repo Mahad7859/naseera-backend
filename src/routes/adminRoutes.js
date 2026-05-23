@@ -12,7 +12,7 @@ const {
   adminGetOrders, adminUpdateOrderStatus, 
   confirmOrderWithTrax, getTraxLabel, getTraxManifest,
   dispatchOrders, updateOrderManifest,
-  completeOrder,
+  completeOrder, cancelOrder,
 } = require('../controllers/orderController')
 const {
   adminGetCategories, adminCreateCategory,
@@ -40,6 +40,7 @@ router.get('/drafts',          requireAdminAuth, adminGetDrafts)
 router.get('/orders',                        requireAnyAuth, adminGetOrders)
 router.patch('/orders/:id/status',           requireAnyAuth, adminUpdateOrderStatus)
 router.post('/orders/:id/complete',          requireAdminAuth, completeOrder)
+router.post('/orders/:orderId/cancel',       requireAnyAuth, cancelOrder)
 router.post('/orders/:orderId/confirm-trax', requireAnyAuth, confirmOrderWithTrax)
 router.get('/orders/label/:trackingNumber',  requireAnyAuth, getTraxLabel)
 router.get('/orders/manifest/:sheetId',      requireAnyAuth, getTraxManifest)
