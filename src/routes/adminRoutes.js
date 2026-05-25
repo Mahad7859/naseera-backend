@@ -23,6 +23,7 @@ const {
   adminUpdateHeroSlide, adminDeleteHeroSlide,
 } = require('../controllers/heroSlideController')
 const { uploadImage } = require('../controllers/uploadController')
+const { logDeliveredOrderFinancials } = require('../utils/financeHelper')
 
 const upload = multer({ storage: multer.memoryStorage() })
 

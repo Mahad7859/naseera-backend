@@ -65,7 +65,8 @@ console.log('⏳ Initializing database schema...')
 initializeSchema()
   .then(() => {
     app.listen(PORT, () => {
-      console.log(`🚀 Backend running on http://localhost:${PORT}`)
+      console.log(`📊 Current Spreadsheet ID: ${process.env.SPREADSHEET_ID || 'NOT SET'}`)
+      console.log(`� Backend running on http://localhost:${PORT}`)
       console.log(`🌐 Accepting requests from: ${ALLOWED_ORIGIN}`)
     })
   })

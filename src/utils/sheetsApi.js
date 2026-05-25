@@ -27,6 +27,9 @@ function getAuthClient() {
  * @param {number}        orderData.courierFee    - Shipping/courier cost charged to us
  */
 async function updateFinancialSheet({ orderId, itemName, costPrice, sellingPrice, courierFee }) {
+  // 🚨 THE LIE DETECTOR 🚨
+  console.log(`🕵️ WARNING: Finalizing Order #${orderId} on ID: ${process.env.SPREADSHEET_ID}`);
+
   // --- Calculations ---
   const totalCost = Number(costPrice) + Number(courierFee) + 0
   const profit = Number(sellingPrice) - totalCost

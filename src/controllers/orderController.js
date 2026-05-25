@@ -3,6 +3,8 @@ const { normalizeOrder } = require('../utils/normalizers')
 const { sendOrderNotificationEmail } = require('../utils/email')
 const { updateFinancialSheet } = require('../utils/sheetsApi')
 const axios = require('axios')
+const { logDeliveredOrderFinancials } = require('../utils/financeHelper')
+const { appendOrderToSheet } = require('../utils/googleSheets')
 
 const VALID_STATUSES = ['pending_confirmation', 'informed', 'packed', 'shipped', 'dispatched', 'delivered', 'cancelled']
 
@@ -28,6 +30,12 @@ async function adminUpdateOrderStatus(req, res) {
   )
 
   if (!rows[0]) return res.status(404).json({ message: 'Order not found.' })
+
+  // Trigger financial automation if status is 'delivered'
+  if (status === 'delivered') {
+    logDeliveredOrderFinancials(req.params.id);
+  }
+
   return res.json(normalizeOrder(rows[0]))
 }
 
@@ -65,12 +73,24 @@ async function checkout(req, res) {
       ],
     )
 
-    const orderId = orderRes.rows[0].id
+    const fullOrder = orderRes.rows[0]
+    const orderId = fullOrder.id
 
-    // Deduct stock for each item purchased
+    // Enrich items with wholesale cost and deduct stock
+    const enrichedItems = []
     for (const item of items) {
       if (item.id) {
         try {
+          // Fetch cost and category for logging
+          const prodRes = await pool.query('SELECT wholesale_price, supplier_name, category FROM products WHERE id = $1', [item.id])
+          const product = prodRes.rows[0]
+          enrichedItems.push({
+            ...item,
+            wholesale_price: product ? product.wholesale_price : 0,
+            supplier_name: product ? product.supplier_name : 'Default Supplier',
+            category: product ? product.category : 'Bag'
+          })
+
           await pool.query(
             'UPDATE products SET stock_quantity = GREATEST(0, stock_quantity - $1) WHERE id = $2',
             [item.quantity || 1, item.id]
@@ -88,6 +108,9 @@ async function checkout(req, res) {
     } catch (emailError) {
       console.error('📧 Email notification failed but order was saved:', emailError.message)
     }
+
+    // Log to Google Sheets (checkout staging)
+    appendOrderToSheet(fullOrder, enrichedItems);
 
     return res.json({
       message: 'Order placed successfully',
@@ -445,6 +468,83 @@ async function completeOrder(req, res) {
   }
 }
 
+/**
+ * 📦 TRAX SETTLEMENT LOGIC
+ */
+async function settleTraxBatch(req, res) {
+  try {
+    // We expect the frontend to send the orders selected and the lump sum deposited
+    const { orderIds, batchId, totalAmountReceived } = req.body;
+
+    if (!orderIds || orderIds.length === 0) {
+      return res.status(400).json({ error: 'No orders selected for settlement.' });
+    }
+
+    // 1. Get the total selling price of all selected orders
+    const placeholders = orderIds.map((_, i) => `$${i + 1}`).join(',');
+    const query = `SELECT id, total_amount FROM orders WHERE id IN (${placeholders})`;
+    const { rows: orders } = await pool.query(query, orderIds);
+
+    const totalExpected = orders.reduce((sum, order) => sum + Number(order.total_amount), 0);
+    
+    // 2. Calculate the exact Trax deduction (delivery fees + GST)
+    const totalDeduction = totalExpected - Number(totalAmountReceived);
+    const deductionPerOrder = totalDeduction / orders.length;
+
+    // 3. Update every order in the batch with its exact final math
+    for (let order of orders) {
+      const orderActualReceived = Number(order.total_amount) - deductionPerOrder;
+      
+      await pool.query(
+        `UPDATE orders 
+         SET trax_status = 'Settled', 
+             trax_batch_id = $1, 
+             trax_amount_received = $2 
+         WHERE id = $3`,
+        [batchId, orderActualReceived, order.id]
+      );
+    }
+
+    res.status(200).json({ 
+      message: 'Trax batch settled successfully!',
+      ordersProcessed: orders.length,
+      totalDeduction 
+    });
+
+  } catch (error) {
+    console.error('❌ Trax Settlement Error:', error);
+    res.status(500).json({ error: 'Failed to settle Trax batch' });
+  }
+}
+
+/**
+ * 🏭 SUPPLIER PAYOUT LOGIC
+ */
+async function paySupplier(req, res) {
+  try {
+    const { orderIds } = req.body;
+
+    if (!orderIds || orderIds.length === 0) {
+      return res.status(400).json({ error: 'No orders selected for supplier payment.' });
+    }
+
+    // Update the DB to show the supplier has been paid for these specific bags
+    const placeholders = orderIds.map((_, i) => `$${i + 1}`).join(',');
+    await pool.query(
+      `UPDATE orders 
+       SET supplier_payment_status = 'Paid' 
+       WHERE id IN (${placeholders})`,
+      orderIds
+    );
+
+    res.status(200).json({ message: 'Supplier marked as paid successfully!' });
+
+  } catch (error) {
+    console.error('❌ Supplier Payout Error:', error);
+    res.status(500).json({ error: 'Failed to process supplier payout' });
+  }
+}
+
 module.exports = { 
   adminGetOrders, 
   adminUpdateOrderStatus, 
@@ -459,4 +559,6 @@ module.exports = {
   updateOrderManifest,
   completeOrder,
   cancelOrder,
+  settleTraxBatch,
+  paySupplier,
 }
