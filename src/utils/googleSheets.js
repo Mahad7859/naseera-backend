@@ -76,3 +76,64 @@ exports.appendOrderToSheet = async (order, products) => {
     console.error('❌ Google Sheets Error:', error.message);
   }
 };
+
+exports.logFinancialTransaction = async (data) => {
+  try {
+    const spreadsheetId = process.env.SPREADSHEET_ID;
+    const { type, amount, name, reason, notes, date } = data;
+    const monthValue = date.substring(0, 7); 
+
+    // 1. Prepare Data for CASH BOOK
+    // Columns: A:# | B:Date | C:Month | D:Type | E:Desc | F:In | G:Out | H:Bal(Formula) | I:Source | J:Paid To | K:Notes
+    const cashBookRow = [
+      '', // A: #
+      date, // B: Date
+      monthValue, // C: Month
+      type === 'IN' ? 'Capital/Investment' : 'Expense/Withdrawal', // D: Transaction Type
+      reason, // E: Description
+      type === 'IN' ? amount : 0, // F: Amount IN
+      type === 'OUT' ? amount : 0, // G: Amount OUT
+      null, // H: Balance (Blue Formula calculates this)
+      type === 'IN' ? name : '', // I: Source / Investor
+      type === 'OUT' ? name : '', // J: Paid To
+      notes || '' // K: Notes
+    ];
+
+    // Append to Cash Book (Using A5 just as a starting point to find the bottom)
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: 'Cash Book!A5:A', 
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: [cashBookRow] },
+    });
+
+    // 2. Prepare Data for INVESTOR LEDGER (Starts at B12, we use A12 for alignment)
+    // Columns: A:# | B:Date | C:Month | D:Investor | E:In | F:Purpose | G:Out | H:Notes
+    if (name.toLowerCase() === 'reyan' || name.toLowerCase() === 'mahad') {
+      const investorRow = [
+        '', // A: #
+        date, // B: Date
+        monthValue, // C: Month
+        name, // D: Investor Name
+        type === 'IN' ? amount : 0, // E: Amount Invested (IN)
+        reason, // F: Purpose
+        type === 'OUT' ? amount : 0, // G: Amount Repaid (OUT)
+        notes || '' // H: Notes
+      ];
+
+      await sheets.spreadsheets.values.append({
+        spreadsheetId,
+        range: 'Investor Ledger!A12:A',
+        valueInputOption: 'USER_ENTERED',
+        insertDataOption: 'INSERT_ROWS',
+        requestBody: { values: [investorRow] },
+      });
+    }
+
+    return true;
+  } catch (error) {
+    console.error('❌ Google Sheets Financial Log Error:', error.message);
+    throw error;
+  }
+};

@@ -12,7 +12,7 @@ const {
   adminGetOrders, adminUpdateOrderStatus, 
   confirmOrderWithTrax, getTraxLabel, printManifest,
   deployManifest, groupOrders, ungroupOrders, updateOrderManifest,
-  completeOrder, cancelOrder,
+  completeOrder, cancelOrder, handleTraxWebhook,
 } = require('../controllers/orderController')
 const {
   adminGetCategories, adminCreateCategory,
@@ -49,6 +49,9 @@ router.post('/orders/group',                 requireAnyAuth, groupOrders)
 router.post('/orders/group/ungroup',         requireAnyAuth, ungroupOrders)
 router.post('/orders/manifest/deploy',       requireAnyAuth, deployManifest)
 router.patch('/orders/:orderId/manifest',    requireAnyAuth, updateOrderManifest)
+
+// TRAX Webhook (Public endpoint for TRAX servers)
+router.post('/trax-webhook', handleTraxWebhook)
 
 // Categories
 router.get('/categories',        requireAnyAuth, adminGetCategories)

@@ -4,9 +4,9 @@ const { sendOrderNotificationEmail } = require('../utils/email')
 const { updateFinancialSheet } = require('../utils/sheetsApi')
 const axios = require('axios')
 const { logDeliveredOrderFinancials } = require('../utils/financeHelper')
-const { appendOrderToSheet } = require('../utils/googleSheets')
+const { appendOrderToSheet, logFinancialTransaction } = require('../utils/googleSheets')
 
-const VALID_STATUSES = ['pending_confirmation', 'informed', 'packed', 'shipped', 'dispatched', 'delivered', 'cancelled']
+const VALID_STATUSES = ['pending_confirmation', 'informed', 'packed', 'shipped', 'dispatched', 'delivered', 'cancelled', 'returned']
 
 async function adminGetOrders(_req, res) {
   const { rows } = await pool.query(
@@ -34,6 +34,28 @@ async function adminUpdateOrderStatus(req, res) {
   // Trigger financial automation if status is 'delivered'
   if (status === 'delivered') {
     logDeliveredOrderFinancials(req.params.id);
+  }
+
+  // Log to Google Sheets when status changes to 'confirmed'
+  if (status === 'confirmed') {
+    try {
+      const updatedOrder = rows[0];
+      const items = Array.isArray(updatedOrder.order_items) ? updatedOrder.order_items : JSON.parse(updatedOrder.order_items || '[]');
+      const enrichedItems = [];
+      for (const item of items) {
+        const prodRes = await pool.query('SELECT wholesale_price, supplier_name, category FROM products WHERE id = $1', [item.id]);
+        const product = prodRes.rows[0];
+        enrichedItems.push({
+          ...item,
+          wholesale_price: product ? product.wholesale_price : 0,
+          supplier_name: product ? product.supplier_name : 'Default Supplier',
+          category: product ? product.category : 'Bag'
+        });
+      }
+      await appendOrderToSheet(updatedOrder, enrichedItems);
+    } catch (err) {
+      console.error('⚠️ Sheets logging failed on manual status change to confirmed:', err.message);
+    }
   }
 
   return res.json(normalizeOrder(rows[0]))
@@ -108,9 +130,6 @@ async function checkout(req, res) {
     } catch (emailError) {
       console.error('📧 Email notification failed but order was saved:', emailError.message)
     }
-
-    // Log to Google Sheets (checkout staging)
-    appendOrderToSheet(fullOrder, enrichedItems);
 
     return res.json({
       message: 'Order placed successfully',
@@ -228,6 +247,29 @@ async function confirmOrderWithTrax(req, res) {
       'UPDATE orders SET tracking_number = $1, status = $2, trax_status = $3 WHERE id = $4',
       [trackingNumber, 'confirmed', 'booked', orderId]
     );
+
+    // 4. Log to Google Sheets (moved from checkout to confirmation phase)
+    try {
+      const { rows: orderRows } = await pool.query('SELECT * FROM orders WHERE id = $1', [orderId]);
+      const updatedOrder = orderRows[0];
+      const items = Array.isArray(updatedOrder.order_items) ? updatedOrder.order_items : JSON.parse(updatedOrder.order_items || '[]');
+      
+      const enrichedItems = [];
+      for (const item of items) {
+        const prodRes = await pool.query('SELECT wholesale_price, supplier_name, category FROM products WHERE id = $1', [item.id]);
+        const product = prodRes.rows[0];
+        enrichedItems.push({
+          ...item,
+          wholesale_price: product ? product.wholesale_price : 0,
+          supplier_name: product ? product.supplier_name : 'Default Supplier',
+          category: product ? product.category : 'Bag'
+        });
+      }
+
+      await appendOrderToSheet(updatedOrder, enrichedItems);
+    } catch (sheetError) {
+      console.error('⚠️ Sheets logging failed during TRAX confirmation booking:', sheetError.message);
+    }
 
     return res.json({ success: true, tracking_number: trackingNumber });
   } catch (error) {
@@ -482,24 +524,25 @@ async function settleTraxBatch(req, res) {
 
     // 1. Get the total selling price of all selected orders
     const placeholders = orderIds.map((_, i) => `$${i + 1}`).join(',');
-    const query = `SELECT id, total_amount FROM orders WHERE id IN (${placeholders})`;
+    const query = `SELECT id, total_amount AS price FROM orders WHERE id IN (${placeholders})`;
     const { rows: orders } = await pool.query(query, orderIds);
 
-    const totalExpected = orders.reduce((sum, order) => sum + Number(order.total_amount), 0);
+    const totalExpected = orders.reduce((sum, order) => sum + Number(order.price), 0);
     
     // 2. Calculate the exact Trax deduction (delivery fees + GST)
     const totalDeduction = totalExpected - Number(totalAmountReceived);
     const deductionPerOrder = totalDeduction / orders.length;
 
-    // 3. Update every order in the batch with its exact final math
+    // 3. Update every order in the batch with exact math AND status
     for (let order of orders) {
-      const orderActualReceived = Number(order.total_amount) - deductionPerOrder;
+      const orderActualReceived = Number(order.price) - deductionPerOrder;
       
       await pool.query(
         `UPDATE orders 
          SET trax_status = 'Settled', 
              trax_batch_id = $1, 
-             trax_amount_received = $2 
+             trax_amount_received = $2,
+             status = 'delivered' /* 🚨 THIS FORCES IT TO DELIVERED */
          WHERE id = $3`,
         [batchId, orderActualReceived, order.id]
       );
@@ -545,6 +588,60 @@ async function paySupplier(req, res) {
   }
 }
 
+async function processManualFinance(req, res) {
+  try {
+    // We get all the data from the frontend form
+    await logFinancialTransaction(req.body);
+    res.status(200).json({ message: 'Transaction successfully logged to ledgers!' });
+  } catch (error) {
+    console.error('Manual Finance Error:', error);
+    res.status(500).json({ error: 'Failed to log transaction' });
+  }
+}
+
+/**
+ * 🔔 TRAX WEBHOOK LISTENER
+ */
+async function handleTraxWebhook(req, res) {
+  // 🚨 BEAT THE 3-SECOND TIMEOUT
+  // We instantly send a 200 OK success message back to Trax so they don't block us.
+  res.status(200).send('Webhook Received');
+
+  try {
+    // 🚨 SENIOR DEV MOVE: Log the exact raw data Trax sends us
+    console.log('\n📦 --- RAW TRAX WEBHOOK PAYLOAD --- 📦');
+    console.log(JSON.stringify(req.body, null, 2));
+    console.log('--------------------------------------\n');
+
+    const { tracking_number, status } = req.body;
+
+    // 1. Handle Delivery
+    if (status && status.includes('Delivered')) {
+      const { rows } = await pool.query(
+        `UPDATE orders 
+         SET status = 'delivered' 
+         WHERE tracking_number = $1
+         RETURNING id`,
+        [tracking_number]
+      );
+      
+      if (rows[0]) {
+        console.log(`✅ Order #${rows[0].id} (Tracking: ${tracking_number}) marked as Delivered!`);
+        // Trigger financial automation (Google Sheets logging)
+        logDeliveredOrderFinancials(rows[0].id);
+      }
+    }
+
+    // 2. Handle RTO / Returned parcels
+    if (status && status.includes('Returned')) {
+      await pool.query(`UPDATE orders SET status = 'returned' WHERE tracking_number = $1`, [tracking_number]);
+      console.log(`📦 Parcel ${tracking_number} marked as Returned.`);
+    }
+  } catch (error) {
+    console.error('❌ Webhook Processing Error:', error.message);
+  }
+}
+
 module.exports = { 
   adminGetOrders, 
   adminUpdateOrderStatus, 
@@ -561,4 +658,6 @@ module.exports = {
   cancelOrder,
   settleTraxBatch,
   paySupplier,
+  processManualFinance,
+  handleTraxWebhook,
 }
