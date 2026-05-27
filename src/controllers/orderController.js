@@ -588,17 +588,6 @@ async function paySupplier(req, res) {
   }
 }
 
-async function processManualFinance(req, res) {
-  try {
-    // We get all the data from the frontend form
-    await logFinancialTransaction(req.body);
-    res.status(200).json({ message: 'Transaction successfully logged to ledgers!' });
-  } catch (error) {
-    console.error('Manual Finance Error:', error);
-    res.status(500).json({ error: 'Failed to log transaction' });
-  }
-}
-
 /**
  * 🔔 TRAX WEBHOOK LISTENER
  */
@@ -658,6 +647,5 @@ module.exports = {
   cancelOrder,
   settleTraxBatch,
   paySupplier,
-  processManualFinance,
   handleTraxWebhook,
 }

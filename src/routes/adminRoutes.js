@@ -12,7 +12,7 @@ const {
   adminGetOrders, adminUpdateOrderStatus, 
   confirmOrderWithTrax, getTraxLabel, printManifest,
   deployManifest, groupOrders, ungroupOrders, updateOrderManifest,
-  completeOrder, cancelOrder, handleTraxWebhook,
+  completeOrder, cancelOrder, handleTraxWebhook, settleTraxBatch, paySupplier,
 } = require('../controllers/orderController')
 const {
   adminGetCategories, adminCreateCategory,
@@ -67,5 +67,9 @@ router.delete('/hero-slides/:id', requireAdminAuth, adminDeleteHeroSlide)
 
 // Image Upload
 router.post('/upload-image', requireAnyAuth, upload.single('image'), uploadImage)
+
+// Financials & ERP
+router.post('/settle-trax',       requireAdminAuth, settleTraxBatch)
+router.post('/pay-supplier',      requireAdminAuth, paySupplier)
 
 module.exports = router
