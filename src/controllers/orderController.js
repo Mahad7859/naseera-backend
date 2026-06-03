@@ -173,7 +173,7 @@ async function confirmOrderWithTrax(req, res) {
 
     // FORCING IDs FOR SWIFT DELIVERY - DO NOT CHANGE
     const serviceTypeId = 1;
-    const shippingModeId = 3; 
+    const shippingModeId = Number(process.env.TRAX_SHIPPING_MODE_ID) || 3; 
     const pickupCityId = Number(process.env.TRAX_PICKUP_CITY_ID) || 144;
     const pickupAddressId = Number(process.env.TRAX_PICKUP_ADDRESS_ID) || 631587;
     const consigneeCityId = Number(order.city_id) || 223;

@@ -14,6 +14,24 @@ if (!process.env.BREVO_API_KEY) {
   console.log('✅ Brevo HTTP API Client Initialized.');
 }
 
+/**
+ * Clean up internal statuses for email display
+ */
+function formatStatus(rawStatus) {
+  if (!rawStatus) return 'Processing';
+  const s = rawStatus.toLowerCase();
+  if (s.includes('trax') || s.includes('updating') || ['pending', 'booked', 'informed', 'packed', 'pending_confirmation'].includes(s)) {
+    return 'ORDER CONFIRMED';
+  }
+  if (s.includes('picked') || s.includes('transit') || s.includes('dispatched')) {
+    return 'SHIPPED';
+  }
+  if (s.includes('delivered')) return 'DELIVERED';
+  if (s.includes('cancel') || s.includes('rejected') || s === 'returned') {
+    return 'CANCELLED';
+  }
+  return rawStatus.replace('_', ' ').toUpperCase();
+}
 
 /**
  * Sends an order notification email to the admin.
@@ -68,7 +86,7 @@ async function sendOrderNotificationEmail(orderId, customer, items, total, payme
         <div class="content">
           <div class="order-banner">
             <div class="order-id">New Order Received!</div>
-            <div class="order-status">${status.replace('_', ' ')}</div>
+            <div class="order-status">${formatStatus(status)}</div>
           </div>
           
           <div class="section-title">Order Information</div>
