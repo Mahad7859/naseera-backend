@@ -24,6 +24,7 @@ const {
 } = require('../controllers/heroSlideController')
 const { uploadImage } = require('../controllers/uploadController')
 const { logDeliveredOrderFinancials } = require('../utils/financeHelper')
+const { updateOrderDeliveryStatus } = require('../controllers/sheetsController')
 
 const upload = multer({ storage: multer.memoryStorage() })
 
@@ -71,5 +72,6 @@ router.post('/upload-image', requireAnyAuth, upload.single('image'), uploadImage
 // Financials & ERP
 router.post('/settle-trax',       requireAdminAuth, settleTraxBatch)
 router.post('/pay-supplier',      requireAdminAuth, paySupplier)
+router.post('/orders/mark-delivered', requireAnyAuth, updateOrderDeliveryStatus)
 
 module.exports = router

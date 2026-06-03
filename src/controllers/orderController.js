@@ -6,7 +6,7 @@ const axios = require('axios')
 const { logDeliveredOrderFinancials } = require('../utils/financeHelper')
 const { appendOrderToSheet, logFinancialTransaction } = require('../utils/googleSheets')
 
-const VALID_STATUSES = ['pending_confirmation', 'informed', 'packed', 'shipped', 'dispatched', 'delivered', 'cancelled', 'returned']
+const VALID_STATUSES = ['pending_confirmation', 'informed', 'packed', 'shipped', 'dispatched', 'delivered', 'cancelled', 'returned', 'cancelled_trax', 'returned_customer', 'completed', 'settled']
 
 async function adminGetOrders(_req, res) {
   const { rows } = await pool.query(

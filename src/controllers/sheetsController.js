@@ -1,3 +1,4 @@
+const pool = require('../config/db');
 const { google } = require('googleapis');
 
 // ==========================================
@@ -215,5 +216,58 @@ exports.updateSupplierPayment = async (req, res) => {
   } catch (error) {
     console.error('❌ Error updating supplier payment:', error);
     res.status(500).json({ error: error.message || 'Failed to update supplier payment' });
+  }
+};
+
+// ==========================================
+// 5️⃣ UPDATE ORDER STATUS TO DELIVERED
+// (Marks order as delivered in Purse Inventory sheet)
+// ==========================================
+exports.updateOrderDeliveryStatus = async (req, res) => {
+  try {
+    const { orderId, newStatus = 'Delivered' } = req.body;
+    const sheets = await getSheetsClient();
+
+    // Step 0: Update Local Database first
+    await pool.query(
+      'UPDATE orders SET status = $1, trax_status = $2 WHERE id = $3',
+      ['delivered', 'Settled', orderId]
+    );
+
+    // Step 1: Fetch all Order IDs from Purse Inventory (Column D)
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Purse Inventory!D7:D1000',
+    });
+
+    const rows = response.data.values;
+    if (!rows) throw new Error('No data found in Purse Inventory');
+
+    // Step 2: Find the row index matching the Order ID
+    const rowIndex = rows.findIndex(row => row[0] === String(orderId));
+    if (rowIndex === -1) throw new Error(`Order ID ${orderId} not found in Purse Inventory`);
+
+    // Step 3: Calculate the exact row number (starts at row 7)
+    const exactRowNumber = 7 + rowIndex;
+
+    // Step 4: Update Status column (Column G) for that row
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Purse Inventory!G${exactRowNumber}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[newStatus]] },
+    });
+
+    console.log(`✅ Order #${orderId} marked as ${newStatus} in Google Sheets (Row ${exactRowNumber})`);
+    res.status(200).json({ 
+      success: true, 
+      message: `Order #${orderId} marked as ${newStatus} in Google Sheets` 
+    });
+  } catch (error) {
+    console.error('❌ Error updating order delivery status:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Failed to update order status' 
+    });
   }
 };
