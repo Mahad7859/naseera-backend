@@ -11,4 +11,9 @@ const pool = new Pool({
   ssl: connectionString ? { rejectUnauthorized: false } : false,
 })
 
+// Prevent transient database connection errors from crashing the backend process
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle database client:', err.message)
+})
+
 module.exports = pool

@@ -6,7 +6,7 @@ const { loginLimiter } = require('../middleware/security')
 const { adminLogin } = require('../controllers/authController')
 const {
   adminGetProducts, adminCreateProduct, adminUpdateProduct,
-  adminDeleteProduct, adminGetDrafts,
+  adminDeleteProduct, adminGetDrafts, adminUpdateProductStock
 } = require('../controllers/productController')
 const { 
   adminGetOrders, adminUpdateOrderStatus, 

@@ -8,11 +8,16 @@ function normalizeProduct(row) {
     imageUrl: row.image_url,
     imageBack: row.image_back,
     imageSide: row.image_side,
+    imageHandheld: row.image_handheld || '',
     isFeatured: row.is_featured,
     isVisible: row.is_visible,
     discountPercentage: Number(row.discount_percentage || 0),
     length: row.length || '',
     width: row.width || '',
+    groupId: row.group_id || '',
+    colorName: row.color_name || '',
+    colorHex: row.color_hex || '#ffffff',
+    tags: row.tags || '',
   }
 }
 

@@ -19,6 +19,16 @@ async function getProducts(req, res) {
   return res.json(rows.map(normalizeProduct))
 }
 
+async function getProduct(req, res) {
+  const { id } = req.params
+  const { rows } = await pool.query('SELECT * FROM products WHERE id = $1 AND is_visible = TRUE AND is_draft = FALSE', [id])
+  if (!rows[0]) {
+    return res.status(404).json({ message: 'Product not found.' })
+  }
+  return res.json(normalizeProduct(rows[0]))
+}
+
+
 // ── Admin ────────────────────────────────────────────────────
 
 async function adminGetProducts(_req, res) {
@@ -29,23 +39,27 @@ async function adminGetProducts(_req, res) {
 async function adminCreateProduct(req, res) {
   const {
     name, category, price, wholesalePrice = 0,
-    description = '', imageUrl = '', imageBack = '', imageSide = '',
+    description = '', image_url = '', image_back = '', image_side = '', image_handheld = '',
     isFeatured = false, isVisible = true, stockQuantity = 10, isDraft = false,
     discountPercentage = 0, length = '', width = '',
+    group_id = '', color_name = '', color_hex = '#ffffff'
   } = req.body
 
   if (!name || !category || price === undefined) {
     return res.status(400).json({ message: 'Name, category and price are required.' })
   }
 
+  // Fallback for legacy frontend requests that might still send imageUrl instead of image_url
+  const finalImageUrl = image_url || req.body.imageUrl || '';
+
   const { rows } = await pool.query(
     `INSERT INTO products
-      (name, category, price, wholesale_price, description, image_url, image_back, image_side,
-       is_featured, is_visible, stock_quantity, is_draft, discount_percentage, length, width)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+      (name, category, price, wholesale_price, description, image_url, image_back, image_side, image_handheld,
+       is_featured, is_visible, stock_quantity, is_draft, discount_percentage, length, width, group_id, color_name, color_hex)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
      RETURNING *`,
-    [name, category, Number(price), Number(wholesalePrice), description, imageUrl, imageBack, imageSide,
-     isFeatured, isVisible, Number(stockQuantity), isDraft, Number(discountPercentage), length, width],
+    [name, category, Number(price), Number(wholesalePrice), description, finalImageUrl, image_back, image_side, image_handheld,
+     isFeatured, isVisible, Number(stockQuantity), isDraft, Number(discountPercentage), length, width, group_id, color_name, color_hex],
   )
 
   return res.status(201).json(normalizeProduct(rows[0]))
@@ -54,21 +68,26 @@ async function adminCreateProduct(req, res) {
 async function adminUpdateProduct(req, res) {
   const {
     name, category, price, wholesalePrice = 0,
-    description = '', imageUrl = '', imageBack = '', imageSide = '',
+    description = '', image_url = '', image_back = '', image_side = '', image_handheld = '',
     isFeatured = false, isVisible = true, stockQuantity = 10, isDraft = false,
     discountPercentage = 0, length = '', width = '',
+    group_id = '', color_name = '', color_hex = '#ffffff'
   } = req.body
+
+  // Fallback for legacy frontend requests that might still send imageUrl instead of image_url
+  const finalImageUrl = image_url || req.body.imageUrl || '';
 
   const { rows } = await pool.query(
     `UPDATE products
      SET name=$1, category=$2, price=$3, wholesale_price=$4, description=$5,
-         image_url=$6, image_back=$7, image_side=$8,
-         is_featured=$9, is_visible=$10, stock_quantity=$11,
-         is_draft=$12, discount_percentage=$13, length=$14, width=$15, updated_at=NOW()
-     WHERE id=$16
+         image_url=$6, image_back=$7, image_side=$8, image_handheld=$9,
+         is_featured=$10, is_visible=$11, stock_quantity=$12,
+         is_draft=$13, discount_percentage=$14, length=$15, width=$16, 
+         group_id=$17, color_name=$18, color_hex=$19, updated_at=NOW()
+     WHERE id=$20
      RETURNING *`,
-    [name, category, Number(price), Number(wholesalePrice), description, imageUrl, imageBack, imageSide,
-     isFeatured, isVisible, Number(stockQuantity), isDraft, Number(discountPercentage), length, width, req.params.id],
+    [name, category, Number(price), Number(wholesalePrice), description, finalImageUrl, image_back, image_side, image_handheld,
+     isFeatured, isVisible, Number(stockQuantity), isDraft, Number(discountPercentage), length, width, group_id, color_name, color_hex, req.params.id],
   )
 
   if (!rows[0]) return res.status(404).json({ message: 'Product not found.' })
@@ -126,6 +145,7 @@ async function supplierCreateProduct(req, res) {
 
 module.exports = {
   getProducts,
+  getProduct,
   adminGetProducts, adminCreateProduct, adminUpdateProduct, adminDeleteProduct, adminGetDrafts,
   supplierUpdateStock, supplierCreateProduct,
 }

@@ -76,6 +76,23 @@ initializeSchema()
       const maskedID = rawID !== 'NOT SET' 
         ? `${rawID.substring(0, 6)}...${rawID.substring(rawID.length - 4)}` 
         : 'NOT SET';
+
+      const rawDB = process.env.DATABASE_URL || 'NOT SET';
+      let maskedDBHost = 'NOT SET';
+      
+      if (rawDB !== 'NOT SET') {
+        try {
+          const dbUrl = new URL(rawDB);
+          maskedDBHost = dbUrl.hostname;
+          if (rawDB.includes(' ') || rawDB.includes('\r')) {
+            console.warn('⚠️  WARNING: Your DATABASE_URL contains hidden spaces or line breaks!');
+          }
+        } catch (e) {
+          maskedDBHost = 'INVALID URL FORMAT';
+        }
+      }
+      
+      console.log(`🔌 Database Host: ${maskedDBHost}`);
       
       console.log(`📊 Spreadsheet ID Loaded: ${maskedID}`);
       console.log(`📁 Looking for .env at: ${path.resolve(__dirname, '.env')}`);
