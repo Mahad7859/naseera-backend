@@ -35,12 +35,17 @@ function formatStatus(rawStatus) {
 
 /**
  * Sends an order notification email to the admin.
+ * @param {number} subtotal - The original subtotal before discount
+ * @param {number} discountAmount - The discount applied
+ * @param {string} appliedCouponCode - The coupon code used
  */
-async function sendOrderNotificationEmail(orderId, customer, items, total, paymentMethod, status, shippingFee, province, city) {
+async function sendOrderNotificationEmail(orderId, customer, items, total, paymentMethod, status, shippingFee, province, city, subtotal, discountAmount, appliedCouponCode) {
   // Ensure all numeric values are actually numbers to avoid toLocaleString errors
   const numTotal = Number(total || 0)
   const numShipping = Number(shippingFee || 0)
-  const subtotal = numTotal - numShipping
+  const numSubtotal = Number(subtotal || 0)
+  const numDiscount = Number(discountAmount || 0)
+  const hasDiscount = numDiscount > 0 && appliedCouponCode
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -149,8 +154,14 @@ async function sendOrderNotificationEmail(orderId, customer, items, total, payme
           <table class="totals-table">
             <tr class="total-row">
               <td style="color: #8b7355;">Subtotal</td>
-              <td style="text-align: right; font-weight: 600;">PKR ${Number(subtotal).toLocaleString()}</td>
+              <td style="text-align: right; font-weight: 600;">PKR ${numSubtotal.toLocaleString()}</td>
             </tr>
+            ${hasDiscount ? `
+            <tr class="total-row" style="color: #3d7a51;">
+              <td>Discount (${appliedCouponCode})</td>
+              <td style="text-align: right; font-weight: 600;">-PKR ${numDiscount.toLocaleString()}</td>
+            </tr>
+            ` : ''}
             <tr class="total-row">
               <td style="color: #8b7355;">Shipping</td>
               <td style="text-align: right; font-weight: 600;">PKR ${numShipping.toLocaleString()}</td>

@@ -25,6 +25,26 @@ async function initializeSchema() {
   `)
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS coupons (
+      id SERIAL PRIMARY KEY,
+      code VARCHAR(50) NOT NULL UNIQUE,
+      discount_type VARCHAR(20) NOT NULL CHECK (discount_type IN ('percentage', 'fixed')),
+      discount_value NUMERIC(10, 2) NOT NULL,
+      applies_to VARCHAR(30) DEFAULT 'all',
+      target_id INTEGER,
+      min_order_amount NUMERIC(10, 2) DEFAULT 0,
+      max_discount NUMERIC(10, 2),
+      usage_limit INTEGER DEFAULT 0,
+      used_count INTEGER DEFAULT 0,
+      start_date TIMESTAMPTZ,
+      end_date TIMESTAMPTZ,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `)
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS manifests (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       trax_sheet_id TEXT UNIQUE NOT NULL,
@@ -41,6 +61,9 @@ async function initializeSchema() {
       customer_phone TEXT,
       customer_address TEXT,
       total_amount NUMERIC(12, 2) NOT NULL,
+      subtotal NUMERIC(12, 2) DEFAULT 0,
+      discount_amount NUMERIC(10, 2) DEFAULT 0,
+      coupon_code TEXT,
       order_items JSONB NOT NULL DEFAULT '[]',
       payment_method TEXT NOT NULL DEFAULT 'cod',
       status TEXT NOT NULL DEFAULT 'pending_confirmation',
@@ -94,7 +117,9 @@ async function initializeSchema() {
     ADD COLUMN IF NOT EXISTS city_id INTEGER,
     ADD COLUMN IF NOT EXISTS tracking_number TEXT,
     ADD COLUMN IF NOT EXISTS trax_status TEXT DEFAULT 'pending_confirmation',
-    ADD COLUMN IF NOT EXISTS manifest_id UUID REFERENCES manifests(id);
+    ADD COLUMN IF NOT EXISTS manifest_id UUID REFERENCES manifests(id),
+    ADD COLUMN IF NOT EXISTS coupon_code VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10, 2) DEFAULT 0;
   `)
 
   await pool.query(`

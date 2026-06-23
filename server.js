@@ -16,6 +16,7 @@ const publicRoutes   = require('./src/routes/publicRoutes')
 const adminRoutes    = require('./src/routes/adminRoutes')
 const sheetsRoutes   = require('./src/routes/sheetsRoutes') // New import
 const supplierRoutes = require('./src/routes/supplierRoutes')
+const couponRoutes   = require('./src/routes/couponRoutes')
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -49,6 +50,7 @@ app.use('/api',          publicRoutes)
 app.use('/api/admin',    adminRoutes)
 app.use('/api/admin',    sheetsRoutes) // New: Mount sheets routes under /api/admin
 app.use('/api/supplier', supplierRoutes)
+app.use('/api',          couponRoutes)
 
 // ── 404 handler ─────────────────────────────────────────────
 app.use((_req, res) => {
