@@ -41,7 +41,7 @@ async function adminCreateProduct(req, res) {
     name, category, price, wholesalePrice = 0,
     description = '', image_url = '', image_back = '', image_side = '', image_handheld = '',
     isFeatured = false, isVisible = true, stockQuantity = 10, isDraft = false,
-    discountPercentage = 0, length = '', width = '',
+    discountPercentage = 0, length = '', width = '', size = 'Medium',
     group_id = '', color_name = '', color_hex = '#ffffff',
     tags = ''
   } = req.body
@@ -56,11 +56,11 @@ async function adminCreateProduct(req, res) {
   const { rows } = await pool.query(
     `INSERT INTO products
       (name, category, price, wholesale_price, description, image_url, image_back, image_side, image_handheld,
-       is_featured, is_visible, stock_quantity, is_draft, discount_percentage, length, width, group_id, color_name, color_hex, tags)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+       is_featured, is_visible, stock_quantity, is_draft, discount_percentage, length, width, size, group_id, color_name, color_hex, tags)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
      RETURNING *`,
     [name, category, Number(price), Number(wholesalePrice), description, finalImageUrl, image_back, image_side, image_handheld,
-     isFeatured, isVisible, Number(stockQuantity), isDraft, Number(discountPercentage), length, width, group_id, color_name, color_hex, tags],
+     isFeatured, isVisible, Number(stockQuantity), isDraft, Number(discountPercentage), length, width, size, group_id, color_name, color_hex, tags],
   )
 
   return res.status(201).json(normalizeProduct(rows[0]))
@@ -71,7 +71,7 @@ async function adminUpdateProduct(req, res) {
     name, category, price, wholesalePrice = 0,
     description = '', image_url = '', image_back = '', image_side = '', image_handheld = '',
     isFeatured = false, isVisible = true, stockQuantity = 10, isDraft = false,
-    discountPercentage = 0, length = '', width = '',
+    discountPercentage = 0, length = '', width = '', size = 'Medium',
     group_id = '', color_name = '', color_hex = '#ffffff',
     tags = ''
   } = req.body
@@ -84,12 +84,12 @@ async function adminUpdateProduct(req, res) {
      SET name=$1, category=$2, price=$3, wholesale_price=$4, description=$5,
          image_url=$6, image_back=$7, image_side=$8, image_handheld=$9,
          is_featured=$10, is_visible=$11, stock_quantity=$12,
-         is_draft=$13, discount_percentage=$14, length=$15, width=$16, 
-         group_id=$17, color_name=$18, color_hex=$19, tags=$20, updated_at=NOW()
-     WHERE id=$21
+         is_draft=$13, discount_percentage=$14, length=$15, width=$16, size=$17,
+         group_id=$18, color_name=$19, color_hex=$20, tags=$21, updated_at=NOW()
+     WHERE id=$22
      RETURNING *`,
     [name, category, Number(price), Number(wholesalePrice), description, finalImageUrl, image_back, image_side, image_handheld,
-     isFeatured, isVisible, Number(stockQuantity), isDraft, Number(discountPercentage), length, width, group_id, color_name, color_hex, tags, req.params.id],
+     isFeatured, isVisible, Number(stockQuantity), isDraft, Number(discountPercentage), length, width, size, group_id, color_name, color_hex, tags, req.params.id],
   )
 
   if (!rows[0]) return res.status(404).json({ message: 'Product not found.' })

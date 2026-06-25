@@ -14,7 +14,7 @@ if (!process.env.BREVO_API_KEY) {
   console.log('✅ Brevo HTTP API Client Initialized.');
 }
 
-/**
+ /**
  * Clean up internal statuses for email display
  */
 function formatStatus(rawStatus) {

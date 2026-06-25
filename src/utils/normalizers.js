@@ -14,6 +14,7 @@ function normalizeProduct(row) {
     discountPercentage: Number(row.discount_percentage || 0),
     length: row.length || '',
     width: row.width || '',
+    size: row.size || 'Medium',
     groupId: row.group_id || '',
     colorName: row.color_name || '',
     colorHex: row.color_hex || '#ffffff',

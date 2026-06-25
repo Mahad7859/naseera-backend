@@ -19,6 +19,7 @@ async function initializeSchema() {
       discount_percentage NUMERIC(5, 2) DEFAULT 0,
       length TEXT DEFAULT '',
       width TEXT DEFAULT '',
+      size TEXT DEFAULT 'Medium',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -138,6 +139,7 @@ async function initializeSchema() {
     ADD COLUMN IF NOT EXISTS discount_percentage NUMERIC(5, 2) DEFAULT 0,
     ADD COLUMN IF NOT EXISTS length TEXT DEFAULT '',
     ADD COLUMN IF NOT EXISTS width TEXT DEFAULT '',
+    ADD COLUMN IF NOT EXISTS size TEXT DEFAULT 'Medium',
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
   `)
