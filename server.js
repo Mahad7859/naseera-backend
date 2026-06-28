@@ -42,8 +42,13 @@ app.use(sanitizeInput)
 // ── General rate limit on all API routes ───────────────────
 app.use('/api', apiLimiter)
 
+const { getSitemap } = require('./src/controllers/sitemapController')
+
 // ── Static uploads ──────────────────────────────────────────
 app.use('/uploads', express.static(path.join(__dirname, 'src', 'uploads')))
+
+// ── Sitemap (must be at root level, not under /api) ────────
+app.get('/sitemap.xml', getSitemap)
 
 // ── Routes ──────────────────────────────────────────────────
 app.use('/api',          publicRoutes)
