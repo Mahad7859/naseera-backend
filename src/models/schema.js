@@ -108,6 +108,7 @@ async function initializeSchema() {
     ADD COLUMN IF NOT EXISTS customer_phone TEXT,
     ADD COLUMN IF NOT EXISTS customer_address TEXT,
     ADD COLUMN IF NOT EXISTS total_amount NUMERIC(12, 2),
+    ADD COLUMN IF NOT EXISTS subtotal NUMERIC(12, 2) DEFAULT 0,
     ADD COLUMN IF NOT EXISTS order_items JSONB DEFAULT '[]',
     ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'online',
     ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending',
