@@ -148,7 +148,7 @@ async function adminUpdateCoupon(req, res) {
     values.push(id);
     const query = `
       UPDATE coupons
-      SET ${fields.join(', ')}, updated_at = NOW()
+      SET ${fields.join(', ')}
       WHERE id = $${paramIndex}
       RETURNING *
     `;

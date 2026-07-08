@@ -66,6 +66,7 @@ function normalizeCategory(row) {
   return {
     ...row,
     imageUrl: row.image_url,
+    mobileImageUrl: row.mobile_image_url || '',
     displayOrder: row.display_order,
   }
 }

@@ -83,6 +83,7 @@ async function initializeSchema() {
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
       image_url TEXT NOT NULL,
+      mobile_image_url TEXT DEFAULT '',
       display_order INTEGER DEFAULT 0,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -133,6 +134,7 @@ async function initializeSchema() {
     ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT '',
     ADD COLUMN IF NOT EXISTS image_back TEXT DEFAULT '',
     ADD COLUMN IF NOT EXISTS image_side TEXT DEFAULT '',
+    ADD COLUMN IF NOT EXISTS image_handheld TEXT DEFAULT '',
     ADD COLUMN IF NOT EXISTS is_featured BOOLEAN NOT NULL DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE,
     ADD COLUMN IF NOT EXISTS stock_quantity INTEGER NOT NULL DEFAULT 10,
@@ -141,6 +143,10 @@ async function initializeSchema() {
     ADD COLUMN IF NOT EXISTS length TEXT DEFAULT '',
     ADD COLUMN IF NOT EXISTS width TEXT DEFAULT '',
     ADD COLUMN IF NOT EXISTS size TEXT DEFAULT 'Medium',
+    ADD COLUMN IF NOT EXISTS group_id TEXT DEFAULT '',
+    ADD COLUMN IF NOT EXISTS color_name TEXT DEFAULT '',
+    ADD COLUMN IF NOT EXISTS color_hex TEXT DEFAULT '#ffffff',
+    ADD COLUMN IF NOT EXISTS tags TEXT DEFAULT '',
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
   `)
@@ -148,6 +154,7 @@ async function initializeSchema() {
   await pool.query(`
     ALTER TABLE categories
     ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS mobile_image_url TEXT DEFAULT '',
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
   `)
@@ -156,6 +163,12 @@ async function initializeSchema() {
     ALTER TABLE hero_slides
     ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0,
     ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+  `)
+
+  await pool.query(`
+    ALTER TABLE coupons
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
   `)

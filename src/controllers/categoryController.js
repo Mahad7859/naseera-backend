@@ -12,25 +12,25 @@ async function adminGetCategories(_req, res) {
 }
 
 async function adminCreateCategory(req, res) {
-  const { name, image_url, display_order = 0 } = req.body
+  const { name, image_url, mobile_image_url = '', display_order = 0 } = req.body
 
   if (!name || !image_url) {
-    return res.status(400).json({ message: 'Name and image URL are required.' })
+    return res.status(400).json({ message: 'Name and desktop image URL are required.' })
   }
 
   const { rows } = await pool.query(
-    'INSERT INTO categories (name, image_url, display_order) VALUES ($1,$2,$3) RETURNING *',
-    [name.toLowerCase().trim(), image_url, Number(display_order)],
+    'INSERT INTO categories (name, image_url, mobile_image_url, display_order) VALUES ($1,$2,$3,$4) RETURNING *',
+    [name.toLowerCase().trim(), image_url, mobile_image_url, Number(display_order)],
   )
 
   return res.status(201).json(normalizeCategory(rows[0]))
 }
 
 async function adminUpdateCategory(req, res) {
-  const { name, image_url, display_order = 0 } = req.body
+  const { name, image_url, mobile_image_url = '', display_order = 0 } = req.body
 
   if (!name || !image_url) {
-    return res.status(400).json({ message: 'Name and image URL are required.' })
+    return res.status(400).json({ message: 'Name and desktop image URL are required.' })
   }
 
   const client = await pool.connect()
@@ -48,9 +48,9 @@ async function adminUpdateCategory(req, res) {
 
     const { rows } = await client.query(
       `UPDATE categories
-       SET name=$1, image_url=$2, display_order=$3, updated_at=NOW()
-       WHERE id=$4 RETURNING *`,
-      [newName, image_url, Number(display_order), req.params.id],
+       SET name=$1, image_url=$2, mobile_image_url=$3, display_order=$4, updated_at=NOW()
+       WHERE id=$5 RETURNING *`,
+      [newName, image_url, mobile_image_url, Number(display_order), req.params.id],
     )
 
     // Keep products in sync when category name changes
